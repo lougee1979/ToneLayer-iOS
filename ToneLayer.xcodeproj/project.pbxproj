@@ -1,0 +1,758 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		BF6B1D0D2FA789DF00AD43B9 /* ToneLayerKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BF6B1D062FA789DF00AD43B9 /* ToneLayerKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		BF6B1CE62FA7897000AD43B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BF6B1CD02FA7896F00AD43B9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BF6B1CD72FA7896F00AD43B9;
+			remoteInfo = ToneLayer;
+		};
+		BF6B1CF02FA7897000AD43B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BF6B1CD02FA7896F00AD43B9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BF6B1CD72FA7896F00AD43B9;
+			remoteInfo = ToneLayer;
+		};
+		BF6B1D0B2FA789DF00AD43B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BF6B1CD02FA7896F00AD43B9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BF6B1D052FA789DF00AD43B9;
+			remoteInfo = ToneLayerKeyboard;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		BF6B1D122FA789DF00AD43B9 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				BF6B1D0D2FA789DF00AD43B9 /* ToneLayerKeyboard.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		BF6B1CD82FA7896F00AD43B9 /* ToneLayer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ToneLayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BF6B1CE52FA7897000AD43B9 /* ToneLayerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ToneLayerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BF6B1CEF2FA7897000AD43B9 /* ToneLayerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ToneLayerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BF6B1D062FA789DF00AD43B9 /* ToneLayerKeyboard.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ToneLayerKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		BF6B1D0E2FA789DF00AD43B9 /* Exceptions for "ToneLayerKeyboard" folder in "ToneLayerKeyboard" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = BF6B1D052FA789DF00AD43B9 /* ToneLayerKeyboard */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		BF6B1CDA2FA7896F00AD43B9 /* ToneLayer */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ToneLayer;
+			sourceTree = "<group>";
+		};
+		BF6B1CE82FA7897000AD43B9 /* ToneLayerTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ToneLayerTests;
+			sourceTree = "<group>";
+		};
+		BF6B1CF22FA7897000AD43B9 /* ToneLayerUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ToneLayerUITests;
+			sourceTree = "<group>";
+		};
+		BF6B1D072FA789DF00AD43B9 /* ToneLayerKeyboard */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BF6B1D0E2FA789DF00AD43B9 /* Exceptions for "ToneLayerKeyboard" folder in "ToneLayerKeyboard" target */,
+			);
+			path = ToneLayerKeyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		BF6B1CD52FA7896F00AD43B9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BF6B1CE22FA7897000AD43B9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BF6B1CEC2FA7897000AD43B9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BF6B1D032FA789DF00AD43B9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		BF6B1CCF2FA7896F00AD43B9 = {
+			isa = PBXGroup;
+			children = (
+				BF6B1CDA2FA7896F00AD43B9 /* ToneLayer */,
+				BF6B1CE82FA7897000AD43B9 /* ToneLayerTests */,
+				BF6B1CF22FA7897000AD43B9 /* ToneLayerUITests */,
+				BF6B1D072FA789DF00AD43B9 /* ToneLayerKeyboard */,
+				BF6B1CD92FA7896F00AD43B9 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		BF6B1CD92FA7896F00AD43B9 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BF6B1CD82FA7896F00AD43B9 /* ToneLayer.app */,
+				BF6B1CE52FA7897000AD43B9 /* ToneLayerTests.xctest */,
+				BF6B1CEF2FA7897000AD43B9 /* ToneLayerUITests.xctest */,
+				BF6B1D062FA789DF00AD43B9 /* ToneLayerKeyboard.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		BF6B1CD72FA7896F00AD43B9 /* ToneLayer */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BF6B1CF92FA7897000AD43B9 /* Build configuration list for PBXNativeTarget "ToneLayer" */;
+			buildPhases = (
+				BF6B1CD42FA7896F00AD43B9 /* Sources */,
+				BF6B1CD52FA7896F00AD43B9 /* Frameworks */,
+				BF6B1CD62FA7896F00AD43B9 /* Resources */,
+				BF6B1D122FA789DF00AD43B9 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BF6B1D0C2FA789DF00AD43B9 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BF6B1CDA2FA7896F00AD43B9 /* ToneLayer */,
+			);
+			name = ToneLayer;
+			packageProductDependencies = (
+			);
+			productName = ToneLayer;
+			productReference = BF6B1CD82FA7896F00AD43B9 /* ToneLayer.app */;
+			productType = "com.apple.product-type.application";
+		};
+		BF6B1CE42FA7897000AD43B9 /* ToneLayerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BF6B1CFC2FA7897000AD43B9 /* Build configuration list for PBXNativeTarget "ToneLayerTests" */;
+			buildPhases = (
+				BF6B1CE12FA7897000AD43B9 /* Sources */,
+				BF6B1CE22FA7897000AD43B9 /* Frameworks */,
+				BF6B1CE32FA7897000AD43B9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BF6B1CE72FA7897000AD43B9 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BF6B1CE82FA7897000AD43B9 /* ToneLayerTests */,
+			);
+			name = ToneLayerTests;
+			packageProductDependencies = (
+			);
+			productName = ToneLayerTests;
+			productReference = BF6B1CE52FA7897000AD43B9 /* ToneLayerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		BF6B1CEE2FA7897000AD43B9 /* ToneLayerUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BF6B1CFF2FA7897000AD43B9 /* Build configuration list for PBXNativeTarget "ToneLayerUITests" */;
+			buildPhases = (
+				BF6B1CEB2FA7897000AD43B9 /* Sources */,
+				BF6B1CEC2FA7897000AD43B9 /* Frameworks */,
+				BF6B1CED2FA7897000AD43B9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BF6B1CF12FA7897000AD43B9 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BF6B1CF22FA7897000AD43B9 /* ToneLayerUITests */,
+			);
+			name = ToneLayerUITests;
+			packageProductDependencies = (
+			);
+			productName = ToneLayerUITests;
+			productReference = BF6B1CEF2FA7897000AD43B9 /* ToneLayerUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		BF6B1D052FA789DF00AD43B9 /* ToneLayerKeyboard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BF6B1D0F2FA789DF00AD43B9 /* Build configuration list for PBXNativeTarget "ToneLayerKeyboard" */;
+			buildPhases = (
+				BF6B1D022FA789DF00AD43B9 /* Sources */,
+				BF6B1D032FA789DF00AD43B9 /* Frameworks */,
+				BF6B1D042FA789DF00AD43B9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BF6B1D072FA789DF00AD43B9 /* ToneLayerKeyboard */,
+			);
+			name = ToneLayerKeyboard;
+			packageProductDependencies = (
+			);
+			productName = ToneLayerKeyboard;
+			productReference = BF6B1D062FA789DF00AD43B9 /* ToneLayerKeyboard.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		BF6B1CD02FA7896F00AD43B9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2640;
+				LastUpgradeCheck = 2650;
+				TargetAttributes = {
+					BF6B1CD72FA7896F00AD43B9 = {
+						CreatedOnToolsVersion = 26.4;
+					};
+					BF6B1CE42FA7897000AD43B9 = {
+						CreatedOnToolsVersion = 26.4;
+						TestTargetID = BF6B1CD72FA7896F00AD43B9;
+					};
+					BF6B1CEE2FA7897000AD43B9 = {
+						CreatedOnToolsVersion = 26.4;
+						TestTargetID = BF6B1CD72FA7896F00AD43B9;
+					};
+					BF6B1D052FA789DF00AD43B9 = {
+						CreatedOnToolsVersion = 26.4;
+					};
+				};
+			};
+			buildConfigurationList = BF6B1CD32FA7896F00AD43B9 /* Build configuration list for PBXProject "ToneLayer" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = BF6B1CCF2FA7896F00AD43B9;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = BF6B1CD92FA7896F00AD43B9 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				BF6B1CD72FA7896F00AD43B9 /* ToneLayer */,
+				BF6B1CE42FA7897000AD43B9 /* ToneLayerTests */,
+				BF6B1CEE2FA7897000AD43B9 /* ToneLayerUITests */,
+				BF6B1D052FA789DF00AD43B9 /* ToneLayerKeyboard */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BF6B1CD62FA7896F00AD43B9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BF6B1CE32FA7897000AD43B9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BF6B1CED2FA7897000AD43B9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BF6B1D042FA789DF00AD43B9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		BF6B1CD42FA7896F00AD43B9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BF6B1CE12FA7897000AD43B9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BF6B1CEB2FA7897000AD43B9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BF6B1D022FA789DF00AD43B9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		BF6B1CE72FA7897000AD43B9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BF6B1CD72FA7896F00AD43B9 /* ToneLayer */;
+			targetProxy = BF6B1CE62FA7897000AD43B9 /* PBXContainerItemProxy */;
+		};
+		BF6B1CF12FA7897000AD43B9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BF6B1CD72FA7896F00AD43B9 /* ToneLayer */;
+			targetProxy = BF6B1CF02FA7897000AD43B9 /* PBXContainerItemProxy */;
+		};
+		BF6B1D0C2FA789DF00AD43B9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BF6B1D052FA789DF00AD43B9 /* ToneLayerKeyboard */;
+			targetProxy = BF6B1D0B2FA789DF00AD43B9 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		BF6B1CF72FA7897000AD43B9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		BF6B1CF82FA7897000AD43B9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		BF6B1CFA2FA7897000AD43B9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ToneLayer/ToneLayer.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = ToneLayer;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alden.ToneLayer;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		BF6B1CFB2FA7897000AD43B9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ToneLayer/ToneLayer.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = ToneLayer;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alden.ToneLayer;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		BF6B1CFD2FA7897000AD43B9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alden.ToneLayerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ToneLayer.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ToneLayer";
+			};
+			name = Debug;
+		};
+		BF6B1CFE2FA7897000AD43B9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alden.ToneLayerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ToneLayer.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ToneLayer";
+			};
+			name = Release;
+		};
+		BF6B1D002FA7897000AD43B9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alden.ToneLayerUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = ToneLayer;
+			};
+			name = Debug;
+		};
+		BF6B1D012FA7897000AD43B9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alden.ToneLayerUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = ToneLayer;
+			};
+			name = Release;
+		};
+		BF6B1D102FA789DF00AD43B9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ToneLayerKeyboard/ToneLayerKeyboard.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ToneLayerKeyboard/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "ToneLayer Keyboard";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alden.ToneLayer.ToneLayerKeyboard;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		BF6B1D112FA789DF00AD43B9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ToneLayerKeyboard/ToneLayerKeyboard.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ToneLayerKeyboard/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "ToneLayer Keyboard";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alden.ToneLayer.ToneLayerKeyboard;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		BF6B1CD32FA7896F00AD43B9 /* Build configuration list for PBXProject "ToneLayer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BF6B1CF72FA7897000AD43B9 /* Debug */,
+				BF6B1CF82FA7897000AD43B9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BF6B1CF92FA7897000AD43B9 /* Build configuration list for PBXNativeTarget "ToneLayer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BF6B1CFA2FA7897000AD43B9 /* Debug */,
+				BF6B1CFB2FA7897000AD43B9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BF6B1CFC2FA7897000AD43B9 /* Build configuration list for PBXNativeTarget "ToneLayerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BF6B1CFD2FA7897000AD43B9 /* Debug */,
+				BF6B1CFE2FA7897000AD43B9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BF6B1CFF2FA7897000AD43B9 /* Build configuration list for PBXNativeTarget "ToneLayerUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BF6B1D002FA7897000AD43B9 /* Debug */,
+				BF6B1D012FA7897000AD43B9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BF6B1D0F2FA789DF00AD43B9 /* Build configuration list for PBXNativeTarget "ToneLayerKeyboard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BF6B1D102FA789DF00AD43B9 /* Debug */,
+				BF6B1D112FA789DF00AD43B9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = BF6B1CD02FA7896F00AD43B9 /* Project object */;
+}
