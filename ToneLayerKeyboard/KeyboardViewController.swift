@@ -23,8 +23,6 @@ class KeyboardViewController: UIInputViewController {
         host.didMove(toParent: self)
         host.view.translatesAutoresizingMaskIntoConstraints = false
 
-        // Pin to all edges with priority below 1000 so we never fight the
-        // system-driven inputView height (which can change with rotation, etc).
         let top = host.view.topAnchor.constraint(equalTo: view.topAnchor)
         let bot = host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         let lead = host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor)
@@ -51,6 +49,7 @@ struct KeyboardView: View {
     @State private var spiralEnabled = true
     @State private var isShifted     = false
     @State private var isNumbers     = false
+    @State private var keyboardTypedText = ""
 
     // Spiral card state
     @State private var showSpiral   = false
@@ -168,7 +167,23 @@ struct KeyboardView: View {
                 }
                 .disabled(isRewriting)
 
-                Button { inputVC.textDocumentProxy.insertText("\n") } label: {
+                Button {
+                    guard let text = UIPasteboard.general.string, !text.isEmpty else {
+                        showStatus("Clipboard is empty")
+                        return
+                    }
+                    keyboardTypedText = text
+                    inputVC.textDocumentProxy.insertText(text)
+                    showStatus("Pasted \u{2014} tap Rewrite")
+                } label: {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 15))
+                        .frame(width: 46, height: 46)
+                        .background(Color(.systemGray4))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+
+                Button { inputVC.textDocumentProxy.insertText("\n"); keyboardTypedText += "\n" } label: {
                     Image(systemName: "return")
                         .font(.system(size: 15))
                         .frame(width: 46, height: 46)
@@ -176,7 +191,10 @@ struct KeyboardView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
 
-                Button { inputVC.textDocumentProxy.deleteBackward() } label: {
+                Button {
+                    inputVC.textDocumentProxy.deleteBackward()
+                    if !keyboardTypedText.isEmpty { keyboardTypedText.removeLast() }
+                } label: {
                     Image(systemName: "delete.left")
                         .font(.system(size: 15))
                         .frame(width: 46, height: 46)
@@ -202,6 +220,7 @@ struct KeyboardView: View {
                     letterRow([".", ",", "?", "!", "'"])
                     modifierKey(systemImage: "delete.left", width: 52) {
                         inputVC.textDocumentProxy.deleteBackward()
+                        if !keyboardTypedText.isEmpty { keyboardTypedText.removeLast() }
                     }
                 }
             } else {
@@ -215,6 +234,7 @@ struct KeyboardView: View {
                     letterRow(["z", "x", "c", "v", "b", "n", "m"])
                     modifierKey(systemImage: "delete.left", width: 48) {
                         inputVC.textDocumentProxy.deleteBackward()
+                        if !keyboardTypedText.isEmpty { keyboardTypedText.removeLast() }
                     }
                 }
             }
@@ -228,12 +248,15 @@ struct KeyboardView: View {
                 }
                 letterKey("space", fontSize: 13) {
                     inputVC.textDocumentProxy.insertText(" ")
+                    keyboardTypedText += " "
                 }
                 modifierKey(".", width: 38) {
                     inputVC.textDocumentProxy.insertText(".")
+                    keyboardTypedText += "."
                 }
                 modifierKey(systemImage: "return", width: 58) {
                     inputVC.textDocumentProxy.insertText("\n")
+                    keyboardTypedText += "\n"
                 }
             }
         }
@@ -243,7 +266,9 @@ struct KeyboardView: View {
         HStack(spacing: 5) {
             ForEach(letters, id: \.self) { letter in
                 letterKey(isShifted && !isNumbers ? letter.uppercased() : letter) {
-                    inputVC.textDocumentProxy.insertText(isShifted && !isNumbers ? letter.uppercased() : letter)
+                    let output = isShifted && !isNumbers ? letter.uppercased() : letter
+                    inputVC.textDocumentProxy.insertText(output)
+                    keyboardTypedText += output
                     if isShifted { isShifted = false }
                 }
             }
@@ -427,18 +452,18 @@ struct KeyboardView: View {
 
     private func rewrite() {
         let proxy = inputVC.textDocumentProxy
-
-        // Safety rule: rewrite only the current active field text before the cursor.
-        // Do not use old shared app text and do not merge documentContextAfterInput.
-        // Both can contain stale letters/drafts from earlier writing sessions.
         defaults?.synchronize()
         let before = proxy.documentContextBeforeInput ?? ""
-        let full = before.trimmingCharacters(in: .whitespacesAndNewlines)
-        let totalToDelete = before.count
+        let typedText = keyboardTypedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cursorText = before.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Fall back to tracked typed text when proxy returns nothing (e.g. Mail's rich text editor)
+        let shouldUseTypedText = !typedText.isEmpty && (cursorText.isEmpty || before.hasSuffix(keyboardTypedText))
+        let full = shouldUseTypedText ? typedText : cursorText
+        let totalToDelete = shouldUseTypedText ? keyboardTypedText.count : before.count
 
         guard !full.isEmpty else { showStatus("Type some text first"); return }
 
-        showStatus("Sending \(full.count) chars…")
+        showStatus("Sending \(full.count) chars\u{2026}")
         isRewriting = true
         explanation = ""
         showSpiral  = false
@@ -449,13 +474,7 @@ struct KeyboardView: View {
             do {
                 let result = try await callClaude(text: full)
 
-                // Replace only the text before the cursor that we intentionally rewrote.
-                // Do not move into text after the cursor; that may be stale unrelated content.
-
-                // Chunk the deletion so the host app's IPC can keep up.
-                // Tight 3000-call loops overwhelm UITextDocumentProxy and silently drop most.
                 await deleteBackwardChunked(proxy: proxy, count: totalToDelete)
-
                 await insertTextChunked(proxy: proxy, text: result.rewrite)
                 await MainActor.run {
                     isRewriting = false
@@ -464,7 +483,7 @@ struct KeyboardView: View {
                         spiralNT      = result.rewrite
                         spiralGrammar = result.grammarOnly
                         spiralOriginal = full
-                        spiralOriginalCount = full.count
+                        spiralOriginalCount = result.rewrite.count
                     }
                 }
 
@@ -472,6 +491,7 @@ struct KeyboardView: View {
                     await deleteBackwardChunked(proxy: proxy, count: result.rewrite.count)
                     await insertTextChunked(proxy: proxy, text: full)
                     await MainActor.run {
+                        keyboardTypedText = full
                         defaults?.set(full, forKey: "testBoxFullText")
                         defaults?.set(false, forKey: "keyboardRewriteInProgress")
                         defaults?.synchronize()
@@ -479,6 +499,7 @@ struct KeyboardView: View {
                     }
                 } else {
                     await MainActor.run {
+                        keyboardTypedText = result.rewrite
                         defaults?.set(result.rewrite, forKey: "testBoxFullText")
                         defaults?.set(false, forKey: "keyboardRewriteInProgress")
                         defaults?.synchronize()
@@ -488,7 +509,7 @@ struct KeyboardView: View {
                                 : result.explanation
                             withAnimation { explanation = text }
                         }
-                        showStatus("Rewritten ✓")
+                        showStatus("Rewritten \u{2713}")
                         saveLog(original: full, result: result)
                     }
                 }
@@ -512,7 +533,7 @@ struct KeyboardView: View {
                 for _ in 0..<thisChunk { proxy.deleteBackward() }
             }
             remaining -= thisChunk
-            try? await Task.sleep(nanoseconds: 5_000_000) // 5ms
+            try? await Task.sleep(nanoseconds: 5_000_000)
         }
     }
 
@@ -520,7 +541,7 @@ struct KeyboardView: View {
         await MainActor.run {
             proxy.adjustTextPosition(byCharacterOffset: knownTextCount)
         }
-        try? await Task.sleep(nanoseconds: 20_000_000) // 20ms
+        try? await Task.sleep(nanoseconds: 20_000_000)
     }
 
     private func insertTextChunked(proxy: UITextDocumentProxy, text: String) async {
@@ -533,7 +554,7 @@ struct KeyboardView: View {
                 proxy.insertText(chunk)
             }
             index = next
-            try? await Task.sleep(nanoseconds: 5_000_000) // 5ms
+            try? await Task.sleep(nanoseconds: 5_000_000)
         }
     }
 
@@ -548,13 +569,14 @@ struct KeyboardView: View {
             await deleteBackwardChunked(proxy: proxy, count: deleteCount)
             await insertTextChunked(proxy: proxy, text: text)
             await MainActor.run {
+                keyboardTypedText = text
                 defaults?.set(text, forKey: "testBoxFullText")
                 defaults?.set(false, forKey: "keyboardRewriteInProgress")
                 defaults?.synchronize()
                 spiralOriginal = ""
                 spiralOriginalCount = 0
                 withAnimation { showSpiral = false }
-                showStatus("Applied ✓")
+                showStatus("Applied \u{2713}")
             }
         }
     }
@@ -598,7 +620,6 @@ struct KeyboardView: View {
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw NBError.apiFailed(0) }
         if http.statusCode != 200 {
-            // Try to surface Claude's error message so user sees the real problem
             if let errJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let err = errJSON["error"] as? [String: Any],
                let msg = err["message"] as? String {
@@ -610,11 +631,9 @@ struct KeyboardView: View {
               let content = (json["content"] as? [[String: Any]])?.first?["text"] as? String
         else { throw NBError.badResponse }
 
-        // Try to parse JSON from Claude's response — strip markdown fences if present
         let cleaned = extractJSON(from: content)
         if let d = cleaned.data(using: .utf8),
            let parsed = try? JSONSerialization.jsonObject(with: d) as? [String: Any] {
-            // Prefer paragraphs array (avoids JSON \n\n escaping issues); fall back to rewrite string
             let rewrite: String
             if let paras = parsed["paragraphs"] as? [String], !paras.isEmpty {
                 rewrite = paras.joined(separator: "\n\n")
@@ -632,18 +651,14 @@ struct KeyboardView: View {
                 )
             }
         }
-        // Fallback: use plain content — but strip any obvious JSON noise
         return ClaudeResult(
             rewrite: cleaned.trimmingCharacters(in: .whitespacesAndNewlines),
             explanation: "", distortions: [], grammarOnly: ""
         )
     }
 
-    /// Extracts JSON from a response that may be wrapped in ```json ... ``` or have
-    /// extra text before/after. Returns the inner JSON object string, or the input unchanged.
     private func extractJSON(from raw: String) -> String {
         var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Strip markdown fences
         if s.hasPrefix("```") {
             if let firstNL = s.firstIndex(of: "\n") {
                 s = String(s[s.index(after: firstNL)...])
@@ -652,7 +667,6 @@ struct KeyboardView: View {
                 s = String(s.dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }
-        // If there's still extra text, grab the first { ... } block
         if let openIdx = s.firstIndex(of: "{"),
            let closeIdx = s.lastIndex(of: "}"),
            openIdx < closeIdx {
@@ -665,21 +679,21 @@ struct KeyboardView: View {
         let instruction = levelInstruction(level: level, profile: profile)
         let adaptive    = adaptiveContext()
         return """
-        You are a communication assistant that translates ND communication into NT-readable communication for a \(profile) user. \(instruction)\(adaptive)
+        You are ToneLayer, a communication assistant that helps neurodivergent people be understood by neurotypical readers. Your job is to translate the structure and signals of ND communication \u{2014} not to delete the person's voice, meaning, or emotional content. Profile: \(profile). \(instruction)\(adaptive)
 
         Rewrite the entire text the user provided from ND style into NT style. Do not stop halfway, do not summarize only the beginning, and do not omit later points just because the text is long or messy. Preserve the user's intended message, requests, constraints, and necessary context from the whole original, but translate the structure, order, tone, and phrasing into what an NT reader would naturally expect.
 
-        The "paragraphs" rewrite is the primary output. Do not shorten, flatten, or simplify the main rewrite to make room for grammar_only. Generate grammar_only after the main rewrite, and keep it secondary.
+        The "paragraphs" rewrite is the primary output. Do not shorten, flatten, or simplify the main rewrite to make room for grammar_only. Generate grammar_only after the main rewrite, and keep it secondary. For any text longer than 3 sentences, you MUST return at least 2 paragraphs in the array \u{2014} never collapse everything into a single string. Brain dumps and multi-topic text must always be organized into multiple paragraphs.
 
-        This is a teaching tool. The explanation must teach — don't just say what changed, say WHY that change makes the text land better with NT readers. Help the user recognise their own patterns over time.
+        This is a teaching tool. The explanation must teach \u{2014} don't just say what changed, say WHY that change makes the text land better with NT readers. Help the user recognise their own patterns over time.
 
-        Always respond with ONLY valid JSON — no markdown, no code fences, no extra text.
+        Always respond with ONLY valid JSON \u{2014} no markdown, no code fences, no extra text.
 
         {
           "paragraphs": ["first paragraph as a plain string", "second paragraph as a plain string", "third paragraph if needed"],
-          "explanation": "REQUIRED: one sentence explaining what ND pattern you addressed and why the change makes it more NT-legible (e.g. 'Moved the main ask to the first sentence — NT readers need to know the purpose before the context, not after.').",
-          "distortions": ["any cognitive distortions found, e.g. catastrophizing, mind-reading — empty array if none"],
-          "grammar_only": "secondary option: grammar-fixed version of the full original that keeps the user's ND structure and meaning but fixes grammar, spelling, punctuation, and obvious typos. Keep this secondary to paragraphs."
+          "explanation": "REQUIRED: one sentence explaining what ND pattern you addressed and why the change makes it more NT-legible.",
+          "distortions": ["any cognitive distortions found, e.g. catastrophizing, mind-reading \u{2014} empty array if none"],
+          "grammar_only": "secondary option: grammar-fixed version of the full original that keeps the user's ND structure and meaning but fixes grammar, spelling, punctuation, and obvious typos."
         }
         """
     }
@@ -687,11 +701,11 @@ struct KeyboardView: View {
     private func adaptiveContext() -> String {
         let patterns = LogStore.shared.topPatterns()
         guard !patterns.isEmpty else { return "" }
-        let list = patterns.map { "\($0.pattern) (\($0.count)×)" }.joined(separator: ", ")
+        let list = patterns.map { "\($0.pattern) (\($0.count)\u{d7})" }.joined(separator: ", ")
         return "\n\nThis user's recurring patterns: \(list). Be especially attentive to these."
     }
 
-    // MARK: - Level instructions (Light / Medium / Strong = how NT the output goes)
+    // MARK: - Level instructions
 
     private func levelInstruction(level: String, profile: String) -> String {
         switch profile {
@@ -699,11 +713,11 @@ struct KeyboardView: View {
         case "ADHD":
             switch level {
             case "Light":
-                return "Make minimal changes. Fix typos and grammar. If the main point is completely buried, move it to the first sentence. Preserve all content and the user's voice. This is a light polish — do not cut or restructure."
+                return "Make minimal changes. Fix typos and grammar. If the main point is completely buried, move it to the first sentence. Preserve all content and the user's voice. This is a light polish \u{2014} do not cut or restructure."
             case "Medium":
-                return "Restructure from ND flow into NT readability. Move the main point to the first sentence. Group related ideas into short paragraphs — each paragraph covers one topic. Cut obvious repetition but keep all distinct ideas and the user's voice intact. The rewrite MUST have multiple paragraphs separated by blank lines. NT readers should be able to follow without effort."
+                return "Restructure from ND flow into NT readability. Move the main point to the first sentence. Group related ideas into short paragraphs \u{2014} each paragraph covers one topic. Cut obvious repetition but keep all distinct ideas and the user's voice intact. The rewrite MUST have multiple paragraphs separated by blank lines. NT readers should be able to follow without effort."
             default: // Strong
-                return "Make a strong ND-to-NT rewrite for ADHD communication. This should read almost like a clear, practical NT message: concise, direct, organized, emotionally regulated, and low-friction for the reader. First sentence states the purpose. Remove spirals, side quests, metaphors, repeated urgency, internal noise, and process-heavy explanation. Keep only the necessary meaning, request, constraints, and useful context. If the text is asking for help, name the actual support need in one clean sentence."
+                return "Reorganize and signal this content clearly for NT readers while keeping the user's voice and meaning fully intact. Lead with what the person needs, is asking, or is communicating. Break into clear paragraphs \u{2014} each covering one idea or thread. Keep the emotional content and the connections between ideas \u{2014} sequence them so they read as deliberate rather than scattered. Do not strip the person's voice, delete their concerns, or flatten the emotional texture. If the text asks for help or describes a struggle, name it clearly in the first paragraph \u{2014} then context and detail follow in subsequent paragraphs. This is translation, not deletion. The output MUST be multiple paragraphs."
             }
 
         case "Autism":
@@ -711,9 +725,9 @@ struct KeyboardView: View {
             case "Light":
                 return "Make a light ND-to-NT rewrite. Fix typos. Add a brief greeting or sign-off only if completely absent. Keep all content and voice intact."
             case "Medium":
-                return "Make a medium ND-to-NT rewrite. Add appropriate social warmth — a genuine greeting, warm transitions, polite closing. Decode any implied meaning and state it directly. Keep all literal content. NT readers should feel connected, not just informed."
+                return "Make a medium ND-to-NT rewrite. Add appropriate social warmth \u{2014} a genuine greeting, warm transitions, polite closing. Decode any implied meaning and state it directly. Keep all literal content. NT readers should feel connected, not just informed. Use multiple paragraphs to separate distinct topics or points."
             default: // Strong
-                return "Make a strong ND-to-NT rewrite using NT social norms. Add natural social flow — appropriate opening, warmth throughout, clear closing. Remove overly blunt phrasing where it would land poorly. Preserve all the user's meaning. Should read as something an NT person would naturally write to build or maintain a relationship."
+                return "Make a strong ND-to-NT rewrite using NT social norms. Add natural social flow \u{2014} appropriate opening, warmth throughout, clear closing. Remove overly blunt phrasing where it would land poorly. Preserve all the user's meaning. Break into multiple paragraphs \u{2014} each one covering one idea. Should read as something an NT person would naturally write to build or maintain a relationship."
             }
 
         case "PTSD / CPTSD":
@@ -721,9 +735,9 @@ struct KeyboardView: View {
             case "Light":
                 return "Make a light ND-to-NT rewrite. Soften the most reactive or escalating phrases only. Keep all content and the user's voice intact."
             case "Medium":
-                return "Make a medium ND-to-NT rewrite. Remove over-justification, excessive apology, and defensive language. Rewrite hedging sentences to be direct. Calm tone throughout. NT readers should feel a steady, confident person wrote this."
+                return "Make a medium ND-to-NT rewrite. Remove over-justification, excessive apology, and defensive language. Rewrite hedging sentences to be direct. Calm tone throughout. Use multiple paragraphs to organize the content. NT readers should feel a steady, confident person wrote this."
             default: // Strong
-                return "Make a strong ND-to-NT rewrite into calm, grounded communication. Remove all defensive language, over-explanation, and anticipatory apology. Write with quiet confidence — what a calm, clear-headed NT person would write with the same message. No escalating language, no hedging."
+                return "Make a strong ND-to-NT rewrite into calm, grounded communication. Remove all defensive language, over-explanation, and anticipatory apology. Break into multiple paragraphs \u{2014} each one making a clear, direct point. Write with quiet confidence \u{2014} what a calm, clear-headed NT person would write with the same message. No escalating language, no hedging."
             }
 
         case "PTSD + Autism":
@@ -731,9 +745,9 @@ struct KeyboardView: View {
             case "Light":
                 return "Make a light ND-to-NT rewrite. Soften the most reactive phrases and add a greeting if absent. Minimal changes otherwise."
             case "Medium":
-                return "Make a medium ND-to-NT rewrite. Remove over-justification and add social warmth. Direct but kind. Cut defensive hedging while adding genuine warmth and connection."
+                return "Make a medium ND-to-NT rewrite. Remove over-justification and add social warmth. Direct but kind. Cut defensive hedging while adding genuine warmth and connection. Use multiple paragraphs to separate distinct topics."
             default: // Strong
-                return "Make a strong ND-to-NT rewrite: warm, direct, calm, no over-justification, no idioms. What a warm, grounded NT person would write with the same message."
+                return "Make a strong ND-to-NT rewrite: warm, direct, calm, no over-justification, no idioms. Break into multiple paragraphs \u{2014} one idea per paragraph. What a warm, grounded NT person would write with the same message."
             }
 
         case "PTSD + ADHD":
@@ -741,16 +755,16 @@ struct KeyboardView: View {
             case "Light":
                 return "Make a light ND-to-NT rewrite. Soften the most reactive phrasing and move the main point closer to the start if buried. Minimal changes otherwise."
             case "Medium":
-                return "Make a medium ND-to-NT rewrite. Lead with the main point. Cut the worst tangents. Remove defensive over-explanation. Calmer and more focused."
+                return "Make a medium ND-to-NT rewrite. Lead with the main point. Cut the worst tangents. Remove defensive over-explanation. Use multiple paragraphs to organize the message. Calmer and more focused."
             default: // Strong
-                return "Make a strong ND-to-NT rewrite for PTSD + ADHD communication. This should be concise, calm, direct, and almost businesslike. Lead with the point. Remove spirals, defensive language, repeated urgency, over-explanation, and internal processing. Keep the valid need and any necessary context. If the text is asking for help, name the support need in one clean sentence."
+                return "Reorganize and signal this content clearly for NT readers while keeping the user's voice and meaning intact. Lead with the main point or need. Break into multiple paragraphs \u{2014} each one organized around one topic or thread. Keep emotional content \u{2014} sequence it so it reads as deliberate rather than scattered. Remove defensive language and over-explanation. Calm, organized, and still recognizably the person who wrote it. Output MUST be multiple paragraphs."
             }
 
         default:
             switch level {
             case "Light":  return "Make a light ND-to-NT rewrite. Fix typos and grammar only. Keep all content and voice intact."
-            case "Medium": return "Restructure ND communication into NT-readable clarity. Main point first. Cut obvious repetition. Keep the user's voice and all distinct substance."
-            default:       return "Fully translate ND communication for NT readers. Clear, direct, no unnecessary content. What an NT person would naturally write with the same intent, while preserving the whole message."
+            case "Medium": return "Restructure ND communication into NT-readable clarity. Main point first. Cut obvious repetition. Use multiple paragraphs. Keep the user's voice and all distinct substance."
+            default:       return "Fully translate ND communication for NT readers. Clear, direct, organized into multiple paragraphs. What an NT person would naturally write with the same intent, while preserving the whole message."
             }
         }
     }
@@ -778,7 +792,7 @@ enum NBError: LocalizedError {
     case badResponse
     var errorDescription: String? {
         switch self {
-        case .noKey:                return "No API key — add it in the ToneLayer app"
+        case .noKey:                return "No API key \u{2014} add it in the ToneLayer app"
         case .apiFailed(let code):  return "API failed (HTTP \(code))"
         case .apiMessage(let s):    return s
         case .badResponse:          return "Unexpected API response"
