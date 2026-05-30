@@ -52,10 +52,10 @@ struct KeyboardView: View {
     @State private var keyboardTypedText = ""
 
     // Spiral card state
-    @State private var showSpiral        = false
-    @State private var spiralNT          = ""
-    @State private var spiralGrammar     = ""
-    @State private var spiralOriginal    = ""
+    @State private var showSpiral          = false
+    @State private var spiralNT            = ""
+    @State private var spiralGrammar       = ""
+    @State private var spiralOriginal      = ""
     @State private var spiralOriginalCount = 0
 
     var body: some View {
@@ -70,13 +70,7 @@ struct KeyboardView: View {
                 mainPanel
             }
         }
-        .background(
-            LinearGradient(
-                colors: [Color.brandViolet.opacity(0.12), Color.brandGreen.opacity(0.12), Color(.systemGroupedBackground)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
+        .background(Color(UIColor.systemGroupedBackground))
         .preferredColorScheme(.light)
         .onAppear { loadSettings() }
     }
@@ -85,8 +79,8 @@ struct KeyboardView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            Image(systemName: "brain.head.profile")
-                .foregroundStyle(Color.brandViolet)
+            Image(systemName: "yin.yang")
+                .foregroundStyle(Color.brandGreen)
                 .font(.system(size: 15))
             VStack(alignment: .leading, spacing: 1) {
                 Text("ToneLayer")
@@ -106,11 +100,19 @@ struct KeyboardView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button { inputVC.advanceToNextInputMode() } label: {
-                Image(systemName: "globe")
-                    .font(.system(size: 17))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 36, height: 36)
+            HStack(spacing: 2) {
+                Button { inputVC.advanceToNextInputMode() } label: {
+                    Image(systemName: "globe")
+                        .font(.system(size: 17))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, height: 36)
+                }
+                Button { inputVC.dismissKeyboard() } label: {
+                    Image(systemName: "keyboard.chevron.compact.down")
+                        .font(.system(size: 17))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, height: 36)
+                }
             }
         }
         .padding(.horizontal, 14)
@@ -131,7 +133,7 @@ struct KeyboardView: View {
                             .font(.system(size: 14, weight: level == l ? .bold : .semibold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
-                            .background(level == l ? Color.brandGreen : Color(.tertiarySystemBackground))
+                            .background(level == l ? Color.brandGreen : Color(UIColor.systemGray4))
                             .foregroundStyle(level == l ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
@@ -180,7 +182,7 @@ struct KeyboardView: View {
                     Image(systemName: "doc.on.clipboard")
                         .font(.system(size: 15))
                         .frame(width: 46, height: 46)
-                        .background(Color(.systemGray4))
+                        .background(Color(UIColor.systemGray4))
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
 
@@ -191,7 +193,7 @@ struct KeyboardView: View {
                     Image(systemName: "return")
                         .font(.system(size: 15))
                         .frame(width: 46, height: 46)
-                        .background(Color(.systemGray4))
+                        .background(Color(UIColor.systemGray4))
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
 
@@ -202,7 +204,7 @@ struct KeyboardView: View {
                     Image(systemName: "delete.left")
                         .font(.system(size: 15))
                         .frame(width: 46, height: 46)
-                        .background(Color(.systemGray4))
+                        .background(Color(UIColor.systemGray4))
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
             }
@@ -216,7 +218,7 @@ struct KeyboardView: View {
     }
 
     private var keyboardRows: some View {
-        VStack(spacing: 7) {
+        VStack(spacing: 6) {
             if isNumbers {
                 letterRow(["1","2","3","4","5","6","7","8","9","0"])
                 letterRow(["-","/",":",";","(",")","$","&","@","\""])
@@ -284,12 +286,11 @@ struct KeyboardView: View {
             Text(title)
                 .font(.system(size: fontSize, weight: .regular))
                 .frame(maxWidth: .infinity)
-                .frame(height: 42)
-                .foregroundStyle(Color(red: 0.12, green: 0.15, blue: 0.18))
-                .background(keyGlassBackground(tint: .white, active: false))
-                .overlay(keyHighlight(tint: .white.opacity(0.55)))
+                .frame(height: 44)
+                .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+                .background(Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .shadow(color: Color.black.opacity(0.22), radius: 0, x: 0, y: 1.2)
+                .shadow(color: Color.black.opacity(0.32), radius: 0, x: 0, y: 1)
         }
         .buttonStyle(.plain)
     }
@@ -297,13 +298,12 @@ struct KeyboardView: View {
     private func modifierKey(_ title: String, active: Bool = false, width: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .frame(width: width, height: 42)
-                .foregroundStyle(active ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
-                .background(keyGlassBackground(tint: active ? .brandGreen : .brandVioletDark, active: active))
-                .overlay(keyHighlight(tint: active ? .brandGreen : .brandVioletDark))
+                .font(.system(size: 14, weight: .semibold))
+                .frame(width: width, height: 44)
+                .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
+                .background(active ? Color.brandGreen : Color(UIColor.systemGray4))
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .shadow(color: Color.black.opacity(0.14), radius: 0, x: 0, y: 1.2)
+                .shadow(color: Color.black.opacity(0.22), radius: 0, x: 0, y: 1)
         }
         .buttonStyle(.plain)
     }
@@ -312,46 +312,20 @@ struct KeyboardView: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 16, weight: .semibold))
-                .frame(width: width, height: 42)
-                .foregroundStyle(active ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
-                .background(keyGlassBackground(tint: active ? .brandGreen : .brandVioletDark, active: active))
-                .overlay(keyHighlight(tint: active ? .brandGreen : .brandVioletDark))
+                .frame(width: width, height: 44)
+                .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
+                .background(active ? Color.brandGreen : Color(UIColor.systemGray4))
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .shadow(color: Color.black.opacity(0.14), radius: 0, x: 0, y: 1.2)
+                .shadow(color: Color.black.opacity(0.22), radius: 0, x: 0, y: 1)
         }
         .buttonStyle(.plain)
-    }
-
-    private func keyGlassBackground(tint: Color, active: Bool) -> some View {
-        RoundedRectangle(cornerRadius: 5, style: .continuous)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(LinearGradient(
-                        colors: [
-                            Color.brandWhite.opacity(active ? 0.45 : 0.64),
-                            tint.opacity(active ? 0.22 : 0.08),
-                            Color.brandViolet.opacity(active ? 0.16 : 0.08),
-                            Color(.systemGray4).opacity(active ? 0.24 : 0.16),
-                        ],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ))
-            )
-    }
-
-    private func keyHighlight(tint: Color) -> some View {
-        RoundedRectangle(cornerRadius: 5, style: .continuous)
-            .stroke(LinearGradient(
-                colors: [Color.brandWhite.opacity(0.72), tint.opacity(0.28), Color.brandViolet.opacity(0.18), Color.black.opacity(0.08)],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            ), lineWidth: 0.7)
     }
 
     // MARK: - Spiral card
 
     private var spiralCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("💚  Pause for a sec?")
+            Text("\u{1f49a}  Pause for a sec?")
                 .font(.system(size: 13, weight: .bold))
             Text("Your text has some patterns that might land differently than you intend.")
                 .font(.system(size: 11))
@@ -380,7 +354,7 @@ struct KeyboardView: View {
 
     private var explanationCard: some View {
         HStack(alignment: .top, spacing: 8) {
-            Text("💡").font(.system(size: 13))
+            Text("\u{1f4a1}").font(.system(size: 13))
             Text(explanation)
                 .font(.system(size: 11))
                 .fixedSize(horizontal: false, vertical: true)
@@ -406,7 +380,7 @@ struct KeyboardView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .background(primary ? Color.brandGreen : Color(.systemGray4))
+                .background(primary ? Color.brandGreen : Color(UIColor.systemGray4))
                 .foregroundStyle(primary ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
@@ -443,7 +417,6 @@ struct KeyboardView: View {
         let before     = proxy.documentContextBeforeInput ?? ""
         let typedText  = keyboardTypedText.trimmingCharacters(in: .whitespacesAndNewlines)
         let cursorText = before.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Fall back to tracked typed text when proxy returns nothing (e.g. Mail)
         let shouldUseTypedText = !typedText.isEmpty && (cursorText.isEmpty || before.hasSuffix(keyboardTypedText))
         let full          = shouldUseTypedText ? typedText  : cursorText
         let totalToDelete = shouldUseTypedText ? keyboardTypedText.count : before.count
@@ -465,9 +438,9 @@ struct KeyboardView: View {
                 await MainActor.run {
                     isRewriting = false
                     if spiralEnabled && result.isSpiraling {
-                        spiralNT           = result.rewrite
-                        spiralGrammar      = result.grammarOnly
-                        spiralOriginal     = full
+                        spiralNT            = result.rewrite
+                        spiralGrammar       = result.grammarOnly
+                        spiralOriginal      = full
                         spiralOriginalCount = result.rewrite.count
                     }
                 }
@@ -682,61 +655,40 @@ struct KeyboardView: View {
 
     private func levelInstruction(level: String, profile: String) -> String {
         switch profile {
-
         case "ADHD":
             switch level {
-            case "Light":
-                return "Make minimal changes. Fix typos and grammar. If the main point is completely buried, move it to the first sentence. Preserve all content and the user's voice. This is a light polish \u{2014} do not cut or restructure."
-            case "Medium":
-                return "Restructure from ND flow into NT readability. Move the main point to the first sentence. Group related ideas into short paragraphs \u{2014} each paragraph covers one topic. Cut obvious repetition but keep all distinct ideas and the user's voice intact. The rewrite MUST have multiple paragraphs. NT readers should be able to follow without effort."
-            default:
-                return "Reorganize and signal this content clearly for NT readers while keeping the user's voice and meaning fully intact. Lead with what the person needs, is asking, or is communicating. Break into clear paragraphs \u{2014} each covering one idea or thread. Keep the emotional content and the connections between ideas \u{2014} sequence them so they read as deliberate rather than scattered. Do not strip the person's voice, delete their concerns, or flatten the emotional texture. If the text asks for help or describes a struggle, name it clearly in the first paragraph \u{2014} then context and detail follow. This is translation, not deletion. Output MUST be multiple paragraphs."
+            case "Light":  return "Make minimal changes. Fix typos and grammar. If the main point is completely buried, move it to the first sentence. Preserve all content and the user's voice."
+            case "Medium": return "Restructure from ND flow into NT readability. Move the main point to the first sentence. Group related ideas into short paragraphs. Cut obvious repetition but keep all distinct ideas and the user's voice. Output MUST have multiple paragraphs."
+            default:       return "Reorganize and signal this content clearly for NT readers while keeping the user's voice and meaning fully intact. Lead with what the person needs or is asking. Break into clear paragraphs \u{2014} each covering one idea. Keep emotional content and connections \u{2014} sequence them so they read as deliberate. This is translation, not deletion. Output MUST be multiple paragraphs."
             }
-
         case "Autism":
             switch level {
-            case "Light":
-                return "Make a light ND-to-NT rewrite. Fix typos. Add a brief greeting or sign-off only if completely absent. Keep all content and voice intact."
-            case "Medium":
-                return "Make a medium ND-to-NT rewrite. Add appropriate social warmth \u{2014} a genuine greeting, warm transitions, polite closing. Decode any implied meaning and state it directly. Keep all literal content. Use multiple paragraphs to separate distinct topics."
-            default:
-                return "Make a strong ND-to-NT rewrite using NT social norms. Add natural social flow \u{2014} appropriate opening, warmth throughout, clear closing. Remove overly blunt phrasing where it would land poorly. Preserve all the user's meaning. Break into multiple paragraphs \u{2014} each one covering one idea."
+            case "Light":  return "Make a light ND-to-NT rewrite. Fix typos. Add a brief greeting or sign-off only if completely absent. Keep all content and voice intact."
+            case "Medium": return "Make a medium ND-to-NT rewrite. Add appropriate social warmth \u{2014} a genuine greeting, warm transitions, polite closing. Decode any implied meaning and state it directly. Keep all literal content. Use multiple paragraphs."
+            default:       return "Make a strong ND-to-NT rewrite using NT social norms. Add natural social flow \u{2014} opening, warmth, clear closing. Remove overly blunt phrasing. Preserve all meaning. Break into multiple paragraphs."
             }
-
         case "PTSD / CPTSD":
             switch level {
-            case "Light":
-                return "Make a light ND-to-NT rewrite. Soften the most reactive or escalating phrases only. Keep all content and the user's voice intact."
-            case "Medium":
-                return "Make a medium ND-to-NT rewrite. Remove over-justification, excessive apology, and defensive language. Rewrite hedging sentences to be direct. Calm tone throughout. Use multiple paragraphs to organize the content."
-            default:
-                return "Make a strong ND-to-NT rewrite into calm, grounded communication. Remove all defensive language, over-explanation, and anticipatory apology. Break into multiple paragraphs \u{2014} each one making a clear, direct point. Write with quiet confidence. No escalating language, no hedging."
+            case "Light":  return "Make a light ND-to-NT rewrite. Soften the most reactive or escalating phrases only. Keep all content and the user's voice intact."
+            case "Medium": return "Remove over-justification, excessive apology, and defensive language. Rewrite hedging sentences to be direct. Calm tone throughout. Use multiple paragraphs."
+            default:       return "Make a strong ND-to-NT rewrite into calm, grounded communication. Remove all defensive language, over-explanation, and anticipatory apology. Break into multiple paragraphs \u{2014} each one making a clear, direct point. No escalating language."
             }
-
         case "PTSD + Autism":
             switch level {
-            case "Light":
-                return "Make a light ND-to-NT rewrite. Soften the most reactive phrases and add a greeting if absent. Minimal changes otherwise."
-            case "Medium":
-                return "Make a medium ND-to-NT rewrite. Remove over-justification and add social warmth. Direct but kind. Use multiple paragraphs to separate distinct topics."
-            default:
-                return "Make a strong ND-to-NT rewrite: warm, direct, calm, no over-justification. Break into multiple paragraphs \u{2014} one idea per paragraph."
+            case "Light":  return "Soften the most reactive phrases and add a greeting if absent. Minimal changes otherwise."
+            case "Medium": return "Remove over-justification and add social warmth. Direct but kind. Use multiple paragraphs."
+            default:       return "Warm, direct, calm, no over-justification. Break into multiple paragraphs \u{2014} one idea per paragraph."
             }
-
         case "PTSD + ADHD":
             switch level {
-            case "Light":
-                return "Make a light ND-to-NT rewrite. Soften the most reactive phrasing and move the main point closer to the start if buried. Minimal changes otherwise."
-            case "Medium":
-                return "Make a medium ND-to-NT rewrite. Lead with the main point. Cut the worst tangents. Remove defensive over-explanation. Use multiple paragraphs. Calmer and more focused."
-            default:
-                return "Reorganize and signal this content clearly for NT readers while keeping the user's voice and meaning intact. Lead with the main point or need. Break into multiple paragraphs \u{2014} each one organized around one topic. Keep emotional content \u{2014} sequence it so it reads as deliberate. Remove defensive language and over-explanation. Output MUST be multiple paragraphs."
+            case "Light":  return "Soften the most reactive phrasing and move the main point closer to the start if buried. Minimal changes otherwise."
+            case "Medium": return "Lead with the main point. Cut the worst tangents. Remove defensive over-explanation. Use multiple paragraphs. Calmer and more focused."
+            default:       return "Reorganize clearly for NT readers while keeping the user's voice. Lead with the main point. Break into multiple paragraphs. Remove defensive language. Output MUST be multiple paragraphs."
             }
-
         default:
             switch level {
             case "Light":  return "Make a light ND-to-NT rewrite. Fix typos and grammar only. Keep all content and voice intact."
-            case "Medium": return "Restructure ND communication into NT-readable clarity. Main point first. Cut obvious repetition. Use multiple paragraphs. Keep the user's voice and all distinct substance."
+            case "Medium": return "Restructure ND communication into NT-readable clarity. Main point first. Cut obvious repetition. Use multiple paragraphs. Keep the user's voice."
             default:       return "Fully translate ND communication for NT readers. Clear, direct, organized into multiple paragraphs. Preserve the whole message."
             }
         }
