@@ -77,7 +77,6 @@ struct ContentView: View {
     @State private var composerExplanation = ""
     @State private var selectedOutput      = "NT version"
     @State private var feedbackSubmitted   = false
-    @State private var exportURL: URL?
     @State private var activityItems: [Any] = []
     @State private var showingExportSheet  = false
 
@@ -151,11 +150,7 @@ struct ContentView: View {
             loadOutcomeEvents()
         }
         .sheet(isPresented: $showingExportSheet) {
-            if !activityItems.isEmpty {
-                ActivityView(activityItems: activityItems)
-            } else if let exportURL {
-                ActivityView(activityItems: [exportURL])
-            }
+            ActivityView(activityItems: activityItems)
         }
     }
 
@@ -304,7 +299,7 @@ struct ContentView: View {
 
             Text(composerResultWindowText)
                 .font(.body)
-                        .foregroundStyle(Color(red: 0.12, green: 0.15, blue: 0.18))
+                .foregroundStyle(Color(red: 0.12, green: 0.15, blue: 0.18))
                 .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
                 .padding(14)
                 .background(Color.brandGreenMist)
@@ -317,7 +312,7 @@ struct ContentView: View {
                     .foregroundStyle(Color.brandGreen)
                 Text(composerTeachingWindowText)
                     .font(.subheadline)
-                        .foregroundStyle(Color(red: 0.12, green: 0.15, blue: 0.18))
+                    .foregroundStyle(Color(red: 0.12, green: 0.15, blue: 0.18))
                     .textSelection(.enabled)
             }
             .frame(maxWidth: .infinity, minHeight: 90, alignment: .topLeading)
@@ -345,39 +340,6 @@ struct ContentView: View {
                     feedbackCard
                 }
             }
-
-            Text("Send to")
-                .font(.subheadline.weight(.semibold))
-
-            HStack(spacing: 10) {
-                Button { openMailWithResult() } label: {
-                    Label("Email", systemImage: "envelope")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-
-                Button { exportResultForWord() } label: {
-                    Label("Word", systemImage: "doc.text")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-            }
-            .disabled(!hasComposerOutput)
-
-            HStack(spacing: 10) {
-                Button { exportResultForPages() } label: {
-                    Label("Pages", systemImage: "doc.richtext")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-
-                Button { openMessagesWithResult() } label: {
-                    Label("Message", systemImage: "message")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-            }
-            .disabled(!hasComposerOutput)
 
             Button { shareComposerResult() } label: {
                 Label("Share", systemImage: "square.and.arrow.up")
@@ -608,10 +570,10 @@ struct ContentView: View {
                                     .fontWeight(.semibold)
                                     .foregroundStyle(selectedProfile == profile ? Color(red: 0.12, green: 0.15, blue: 0.18) : Color.primary)
                                 Spacer()
-                            if selectedProfile == profile {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(Color.brandVioletDark)
-                            }
+                                if selectedProfile == profile {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(Color.brandVioletDark)
+                                }
                             }
                             if let desc = profileDescriptions[profile] {
                                 Text(desc)
@@ -784,14 +746,10 @@ struct ContentView: View {
                 }
             }
 
-            Text("Type or paste anything in the box below — a brain dump, a draft text, whatever. Switch to ToneLayer Keyboard (globe key), tap ✦ Rewrite. The rewrite replaces the text in this same box.")
+            Text("Type or paste anything in the box below — a brain dump, a draft text, whatever. Switch to ToneLayer Keyboard (globe key), tap ✶ Rewrite. The rewrite replaces the text in this same box.")
                 .foregroundStyle(.secondary)
                 .font(.subheadline)
 
-            // UIKit text view (not SwiftUI's TextEditor). SwiftUI's TextEditor doesn't honor
-            // UITextDocumentProxy.adjustTextPosition reliably, which silently broke the
-            // keyboard's "walk the cursor to gather full text" feature in this test box.
-            // UIKit's UITextView behaves like real-world apps (Reminders, Mail, Safari).
             ZStack(alignment: .topLeading) {
                 UIKitTextView(text: $testText)
                     .frame(minHeight: 180, maxHeight: 320)
@@ -813,7 +771,6 @@ struct ContentView: View {
                 }
             }
 
-            // Character counter so the user can see what they're sending.
             HStack {
                 Spacer()
                 Text("\(testText.count) characters")
@@ -865,7 +822,6 @@ struct ContentView: View {
 
         apiKey = sharedDefaults.string(forKey: apiKeyKey) ?? ""
 
-        // Spiral Pause: default ON, Medium sensitivity if not previously set.
         if sharedDefaults.object(forKey: spiralPauseEnabledKey) == nil {
             spiralPauseEnabled = true
             sharedDefaults.set(true, forKey: spiralPauseEnabledKey)
@@ -874,7 +830,6 @@ struct ContentView: View {
         }
         let storedSens = sharedDefaults.string(forKey: spiralSensitivityKey) ?? "Medium"
         spiralSensitivity = sensitivities.contains(storedSens) ? storedSens : "Medium"
-        // migrate old "Light"/"Strong" values to "Low"/"High"
         if spiralSensitivity == "Light" { spiralSensitivity = "Low" }
         if spiralSensitivity == "Strong" { spiralSensitivity = "High" }
 
@@ -924,22 +879,14 @@ struct ContentView: View {
     }
 
     private var composerResultWindowText: String {
-        guard hasComposerOutput else {
-            return "Rewrite result will appear here."
-        }
+        guard hasComposerOutput else { return "Rewrite result will appear here." }
         return selectedComposerText.isEmpty ? "Rewrite result will appear here." : selectedComposerText
     }
 
     private var composerTeachingWindowText: String {
-        guard showExplanation else {
-            return "Teaching explanations are turned off in Options."
-        }
-        guard hasComposerOutput else {
-            return "After a rewrite, this will explain what changed and why the result is more NT-readable."
-        }
-        return composerExplanation.isEmpty
-            ? "No teaching explanation returned for this rewrite."
-            : composerExplanation
+        guard showExplanation else { return "Teaching explanations are turned off in Options." }
+        guard hasComposerOutput else { return "After a rewrite, this will explain what changed and why the result is more NT-readable." }
+        return composerExplanation.isEmpty ? "No teaching explanation returned for this rewrite." : composerExplanation
     }
 
     private func pasteFromClipboard() {
@@ -966,71 +913,11 @@ struct ContentView: View {
         trackOutcome(event: "replace_draft")
     }
 
-    private func openMailWithResult() {
-        let encodedBody = selectedComposerText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        guard let url = URL(string: "mailto:?body=\(encodedBody)") else {
-            composerStatus = "Could not prepare Mail"
-            return
-        }
-        UIApplication.shared.open(url) { success in
-            if !success {
-                UIPasteboard.general.string = selectedComposerText
-                composerStatus = "Mail unavailable. Copied instead."
-            }
-        }
-        trackOutcome(event: "export_email")
-    }
-
-    private func openMessagesWithResult() {
-        let encodedBody = selectedComposerText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        guard let url = URL(string: "sms:&body=\(encodedBody)") else {
-            composerStatus = "Could not prepare Message"
-            return
-        }
-        UIApplication.shared.open(url) { success in
-            if !success {
-                UIPasteboard.general.string = selectedComposerText
-                composerStatus = "Messages unavailable. Copied instead."
-            }
-        }
-        trackOutcome(event: "export_message")
-    }
-
-    private func exportResultForPages() {
-        exportResultAsTextFile(status: "Choose Pages from the share sheet")
-        trackOutcome(event: "export_pages")
-    }
-
-    private func exportResultForWord() {
-        exportResultAsTextFile(status: "Choose Word from the share sheet")
-        trackOutcome(event: "export_word")
-    }
-
     private func shareComposerResult() {
         activityItems = [selectedComposerText]
-        exportURL = nil
         showingExportSheet = true
         composerStatus = "Choose where to share"
         trackOutcome(event: "share_result")
-    }
-
-    private func exportResultAsTextFile(status: String) {
-        let safeName = selectedOutput
-            .replacingOccurrences(of: " ", with: "-")
-            .replacingOccurrences(of: "/", with: "-")
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ToneLayer-\(safeName).txt")
-
-        do {
-            try selectedComposerText.write(to: url, atomically: true, encoding: .utf8)
-            exportURL = url
-            activityItems = [url]
-            showingExportSheet = true
-            composerStatus = status
-        } catch {
-            UIPasteboard.general.string = selectedComposerText
-            composerStatus = "Export failed. Copied instead."
-        }
     }
 
     private func rewriteComposer() {
@@ -1123,12 +1010,7 @@ struct ContentView: View {
         guard let parsedData = cleaned.data(using: .utf8),
               let parsed = try? JSONSerialization.jsonObject(with: parsedData) as? [String: Any]
         else {
-            return ComposerResult(
-                rewrite: cleaned.trimmingCharacters(in: .whitespacesAndNewlines),
-                grammarOnly: "",
-                explanation: "",
-                distortions: []
-            )
+            return ComposerResult(rewrite: cleaned.trimmingCharacters(in: .whitespacesAndNewlines), grammarOnly: "", explanation: "", distortions: [])
         }
 
         let rewrite: String
@@ -1172,16 +1054,10 @@ struct ContentView: View {
     private func extractComposerJSON(from raw: String) -> String {
         var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if s.hasPrefix("```") {
-            if let firstNL = s.firstIndex(of: "\n") {
-                s = String(s[s.index(after: firstNL)...])
-            }
-            if s.hasSuffix("```") {
-                s = String(s.dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
+            if let firstNL = s.firstIndex(of: "\n") { s = String(s[s.index(after: firstNL)...]) }
+            if s.hasSuffix("```") { s = String(s.dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines) }
         }
-        if let openIdx = s.firstIndex(of: "{"),
-           let closeIdx = s.lastIndex(of: "}"),
-           openIdx < closeIdx {
+        if let openIdx = s.firstIndex(of: "{"), let closeIdx = s.lastIndex(of: "}"), openIdx < closeIdx {
             return String(s[openIdx...closeIdx])
         }
         return s
@@ -1189,15 +1065,10 @@ struct ContentView: View {
 
     private func saveLog(original: String, rewritten: String, explanation: String, distortions: [String]) {
         let entry = RewriteEntry(
-            id: UUID(),
-            timestamp: Date(),
-            profile: selectedProfile,
-            mode: rewriteLevel,
-            originalText: original,
-            rewrittenText: rewritten,
-            explanation: explanation,
-            distortions: distortions,
-            spiraling: !distortions.isEmpty
+            id: UUID(), timestamp: Date(),
+            profile: selectedProfile, mode: rewriteLevel,
+            originalText: original, rewrittenText: rewritten,
+            explanation: explanation, distortions: distortions, spiraling: !distortions.isEmpty
         )
         DispatchQueue.global(qos: .background).async { LogStore.shared.append(entry) }
     }
@@ -1221,11 +1092,8 @@ struct ContentView: View {
     ) {
         guard outcomesOptIn else { return }
         let entry = OutcomeEvent(
-            id: UUID(),
-            timestamp: Date(),
-            event: event,
-            profile: selectedProfile,
-            mode: rewriteLevel,
+            id: UUID(), timestamp: Date(),
+            event: event, profile: selectedProfile, mode: rewriteLevel,
             selectedOutput: selectedOutput,
             inputLength: inputLength ?? testText.count,
             outputLength: outputLength ?? selectedComposerText.count,
@@ -1243,12 +1111,7 @@ struct ContentView: View {
     }
 
     private func submitFeedback(label: String, clarity: Int, overwhelm: Int) {
-        trackOutcome(
-            event: "feedback_submitted",
-            feedbackLabel: label,
-            clarityRating: clarity,
-            overwhelmRating: overwhelm
-        )
+        trackOutcome(event: "feedback_submitted", feedbackLabel: label, clarityRating: clarity, overwhelmRating: overwhelm)
         feedbackSubmitted = true
         composerStatus = "Feedback saved locally"
     }
@@ -1324,8 +1187,7 @@ struct ContentView: View {
                     .padding(.vertical, 3)
                     .background(Color.brandVioletDark.opacity(0.12))
                     .clipShape(Capsule())
-                Text("·")
-                    .foregroundStyle(.tertiary)
+                Text("·").foregroundStyle(.tertiary)
                 Text(entry.mode)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -1335,8 +1197,7 @@ struct ContentView: View {
                     .foregroundStyle(.tertiary)
             }
             if !entry.explanation.isEmpty {
-                Text(entry.explanation)
-                    .font(.subheadline)
+                Text(entry.explanation).font(.subheadline)
             }
             Text(entry.rewrittenText.prefix(100) + (entry.rewrittenText.count > 100 ? "…" : ""))
                 .font(.caption)
@@ -1373,20 +1234,12 @@ enum ComposerError: LocalizedError {
 
 struct ActivityView: UIViewControllerRepresentable {
     let activityItems: [Any]
-
     func makeUIViewController(context: Context) -> UIActivityViewController {
         UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
     }
-
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-// MARK: - UIKit text view bridge
-//
-// SwiftUI's TextEditor doesn't honor UITextDocumentProxy.adjustTextPosition reliably,
-// so the ToneLayer keyboard can't walk the cursor through the field to read the full
-// text — only the most recent paragraph. Wrapping a UITextView gives us the same behavior
-// as real-world apps (Reminders, Mail, Safari) where the keyboard works correctly.
 struct UIKitTextView: UIViewRepresentable {
     @Binding var text: String
 
@@ -1405,33 +1258,30 @@ struct UIKitTextView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UITextView, context: Context) {
-        if uiView.text != text {
-            uiView.text = text
-        }
+        if uiView.text != text { uiView.text = text }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-        class Coordinator: NSObject, UITextViewDelegate {
-            var parent: UIKitTextView
-            private var pendingWrite: DispatchWorkItem?
-            init(_ parent: UIKitTextView) { self.parent = parent }
-            func textViewDidChange(_ textView: UITextView) {
-                parent.text = textView.text
-                pendingWrite?.cancel()
-                let snapshot = textView.text ?? ""
-                let shared = UserDefaults(suiteName: "group.com.alden.tonelayer")
-                guard shared?.bool(forKey: "keyboardRewriteInProgress") != true else { return }
-
-                shared?.set(snapshot, forKey: "testBoxFullText")
-                let work = DispatchWorkItem { shared?.synchronize() }
-                pendingWrite = work
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
-            }
+    class Coordinator: NSObject, UITextViewDelegate {
+        var parent: UIKitTextView
+        private var pendingWrite: DispatchWorkItem?
+        init(_ parent: UIKitTextView) { self.parent = parent }
+        func textViewDidChange(_ textView: UITextView) {
+            parent.text = textView.text
+            pendingWrite?.cancel()
+            let snapshot = textView.text ?? ""
+            let shared = UserDefaults(suiteName: "group.com.alden.tonelayer")
+            guard shared?.bool(forKey: "keyboardRewriteInProgress") != true else { return }
+            shared?.set(snapshot, forKey: "testBoxFullText")
+            let work = DispatchWorkItem { shared?.synchronize() }
+            pendingWrite = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+        }
     }
 }
 
-// MARK: - Rewrite log (shared model — must match KeyboardViewController.swift)
+// MARK: - Rewrite log
 
 struct RewriteEntry: Codable, Identifiable {
     let id: UUID
@@ -1468,8 +1318,7 @@ final class LogStore {
         var entries = load()
         entries.append(entry)
         if entries.count > 500 { entries = Array(entries.suffix(500)) }
-        guard let url = logURL,
-              let data = try? JSONEncoder().encode(entries) else { return }
+        guard let url = logURL, let data = try? JSONEncoder().encode(entries) else { return }
         try? data.write(to: url, options: .atomic)
     }
 
@@ -1537,16 +1386,11 @@ struct CorrectionMetrics: Codable {
     }
 
     private static func words(in text: String) -> [String] {
-        text.lowercased()
-            .split { !$0.isLetter && !$0.isNumber }
-            .map(String.init)
-            .filter { $0.count > 2 }
+        text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count > 2 }
     }
-
     private static func sentenceCount(in text: String) -> Int {
         max(1, text.split { ".!?".contains($0) }.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count)
     }
-
     private static func paragraphCount(in text: String) -> Int {
         max(1, text.components(separatedBy: "\n\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count)
     }
@@ -1575,8 +1419,7 @@ final class OutcomeStore {
         var events = load()
         events.append(event)
         if events.count > 1000 { events = Array(events.suffix(1000)) }
-        guard let url = eventsURL,
-              let data = try? JSONEncoder().encode(events) else { return }
+        guard let url = eventsURL, let data = try? JSONEncoder().encode(events) else { return }
         try? data.write(to: url, options: .atomic)
     }
 
