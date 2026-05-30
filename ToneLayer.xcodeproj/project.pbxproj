@@ -653,7 +653,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 466RHQ4TLW;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ToneLayerKeyboard/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "ToneLayer Keyboard";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -682,7 +682,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 466RHQ4TLW;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ToneLayerKeyboard/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "ToneLayer Keyboard";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
