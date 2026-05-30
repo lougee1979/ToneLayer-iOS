@@ -9,12 +9,12 @@ import SwiftUI
 import UIKit
 
 extension Color {
-    static let brandVioletDark = Color(red: 0.04, green: 0.06, blue: 0.22)
-    static let brandViolet = Color(red: 0.02, green: 0.23, blue: 0.98)
-    static let brandGreen = Color(red: 0.06, green: 0.72, blue: 0.70)
-    static let brandWhite = Color(red: 0.97, green: 0.98, blue: 0.98)
-    static let brandGreenMist = Color(red: 0.93, green: 0.98, blue: 0.98)
-    static let brandVioletMist = Color(red: 0.93, green: 0.91, blue: 1.0)
+    static let brandVioletDark = Color(red: 0.369, green: 0.122, blue: 0.784)  // #5E1FC8 deep violet
+    static let brandViolet     = Color(red: 0.220, green: 0.502, blue: 0.973)  // #3880F8 bright blue
+    static let brandGreen      = Color(red: 0.608, green: 0.247, blue: 0.910)  // #9B3FE8 vivid violet
+    static let brandWhite      = Color(red: 0.976, green: 0.969, blue: 1.000)
+    static let brandGreenMist  = Color(red: 0.882, green: 0.914, blue: 0.996)
+    static let brandVioletMist = Color(red: 0.929, green: 0.878, blue: 1.000)
 }
 
 struct GlassCard: ViewModifier {
@@ -142,7 +142,7 @@ struct ContentView: View {
             }
             .padding()
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Color(red: 0.945, green: 0.937, blue: 0.984))
         .preferredColorScheme(.light)
         .onAppear {
             loadSettings()
