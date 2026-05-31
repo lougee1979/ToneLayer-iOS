@@ -1,13 +1,13 @@
 import UIKit
 import SwiftUI
 
-// MARK: - Brand colors: violet and green from the ToneLayer icon
+// MARK: - Brand colors
 
 extension Color {
     static let brandVioletDark = Color(red: 0.04, green: 0.06, blue: 0.22)
-    static let brandViolet = Color(red: 0.02, green: 0.23, blue: 0.98)
-    static let brandGreen = Color(red: 0.06, green: 0.72, blue: 0.70)
-    static let brandWhite = Color(red: 0.97, green: 0.98, blue: 0.98)
+    static let brandViolet     = Color(red: 0.02, green: 0.23, blue: 0.98)
+    static let brandGreen      = Color(red: 0.06, green: 0.72, blue: 0.70)
+    static let brandWhite      = Color(red: 0.97, green: 0.98, blue: 0.98)
 }
 
 // MARK: - Principal class
@@ -23,11 +23,9 @@ class KeyboardViewController: UIInputViewController {
         host.didMove(toParent: self)
         host.view.translatesAutoresizingMaskIntoConstraints = false
 
-        // Pin to all edges with priority below 1000 so we never fight the
-        // system-driven inputView height (which can change with rotation, etc).
-        let top = host.view.topAnchor.constraint(equalTo: view.topAnchor)
-        let bot = host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-        let lead = host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor)
+        let top   = host.view.topAnchor.constraint(equalTo: view.topAnchor)
+        let bot   = host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        let lead  = host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor)
         let trail = host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         [top, bot, lead, trail].forEach { $0.priority = .defaultHigh }
         NSLayoutConstraint.activate([top, bot, lead, trail])
@@ -42,21 +40,22 @@ struct KeyboardView: View {
     private let appGroupID = "group.com.alden.tonelayer"
     private var defaults: UserDefaults? { UserDefaults(suiteName: appGroupID) }
 
-    @State private var profile      = "Autism"
-    @State private var level        = "Medium"
-    @State private var isRewriting  = false
-    @State private var status       = ""
-    @State private var explanation  = ""
-    @State private var showExpl     = true
-    @State private var spiralEnabled = true
-    @State private var isShifted     = false
-    @State private var isNumbers     = false
+    @State private var profile           = "Autism"
+    @State private var level             = "Medium"
+    @State private var isRewriting       = false
+    @State private var status            = ""
+    @State private var explanation       = ""
+    @State private var showExpl          = true
+    @State private var spiralEnabled     = true
+    @State private var isShifted         = false
+    @State private var isNumbers         = false
+    @State private var keyboardTypedText = ""
 
     // Spiral card state
-    @State private var showSpiral   = false
-    @State private var spiralNT     = ""
-    @State private var spiralGrammar = ""
-    @State private var spiralOriginal = ""
+    @State private var showSpiral          = false
+    @State private var spiralNT            = ""
+    @State private var spiralGrammar       = ""
+    @State private var spiralOriginal      = ""
     @State private var spiralOriginalCount = 0
 
     var body: some View {
@@ -64,22 +63,14 @@ struct KeyboardView: View {
             topBar
             Divider()
             if showSpiral {
-                spiralCard
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                spiralCard.transition(.move(edge: .top).combined(with: .opacity))
             } else if !explanation.isEmpty && showExpl {
-                explanationCard
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                explanationCard.transition(.move(edge: .top).combined(with: .opacity))
             } else {
                 mainPanel
             }
         }
-        .background(
-            LinearGradient(
-                colors: [Color.brandViolet.opacity(0.12), Color.brandGreen.opacity(0.12), Color(.systemGroupedBackground)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
+        .background(Color(UIColor.systemGroupedBackground))
         .preferredColorScheme(.light)
         .onAppear { loadSettings() }
     }
@@ -88,8 +79,8 @@ struct KeyboardView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            Image(systemName: "brain.head.profile")
-                .foregroundStyle(Color.brandViolet)
+            Image(systemName: "yin.yang")
+                .foregroundStyle(Color.brandGreen)
                 .font(.system(size: 15))
             VStack(alignment: .leading, spacing: 1) {
                 Text("ToneLayer")
@@ -99,16 +90,29 @@ struct KeyboardView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text(levelKeyTitle(level))
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Color.brandGreen)
-                .lineLimit(1)
-            Spacer()
-            Button { inputVC.advanceToNextInputMode() } label: {
-                Image(systemName: "globe")
-                    .font(.system(size: 17))
+            VStack(spacing: 1) {
+                Text("ND \u{2192} NT")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.brandGreen)
+                    .lineLimit(1)
+                Text(levelKeyTitle(level))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 36, height: 36)
+            }
+            Spacer()
+            HStack(spacing: 2) {
+                Button { inputVC.advanceToNextInputMode() } label: {
+                    Image(systemName: "globe")
+                        .font(.system(size: 17))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, height: 36)
+                }
+                Button { inputVC.dismissKeyboard() } label: {
+                    Image(systemName: "keyboard.chevron.compact.down")
+                        .font(.system(size: 17))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, height: 36)
+                }
             }
         }
         .padding(.horizontal, 14)
@@ -119,7 +123,6 @@ struct KeyboardView: View {
 
     private var mainPanel: some View {
         VStack(spacing: 10) {
-            // NT level selector
             HStack(spacing: 6) {
                 ForEach(["Light", "Medium", "Strong"], id: \.self) { l in
                     Button {
@@ -130,7 +133,7 @@ struct KeyboardView: View {
                             .font(.system(size: 14, weight: level == l ? .bold : .semibold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
-                            .background(level == l ? Color.brandGreen : Color(.tertiarySystemBackground))
+                            .background(level == l ? Color.brandGreen : Color(UIColor.systemGray4))
                             .foregroundStyle(level == l ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
@@ -146,7 +149,6 @@ struct KeyboardView: View {
                     .foregroundStyle(.secondary)
             }
 
-            // Action row
             HStack(spacing: 8) {
                 Button(action: rewrite) {
                     HStack(spacing: 6) {
@@ -168,23 +170,46 @@ struct KeyboardView: View {
                 }
                 .disabled(isRewriting)
 
-                Button { inputVC.textDocumentProxy.insertText("\n") } label: {
-                    Image(systemName: "return")
+                Button {
+                    guard let text = UIPasteboard.general.string, !text.isEmpty else {
+                        showStatus("Clipboard is empty")
+                        return
+                    }
+                    keyboardTypedText = text
+                    inputVC.textDocumentProxy.insertText(text)
+                    showStatus("Pasted \u{2014} tap Rewrite")
+                } label: {
+                    Image(systemName: "doc.on.clipboard")
                         .font(.system(size: 15))
                         .frame(width: 46, height: 46)
-                        .background(Color(.systemGray4))
+                        .background(Color(UIColor.systemGray4))
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
 
-                Button { inputVC.textDocumentProxy.deleteBackward() } label: {
+                Button {
+                    inputVC.textDocumentProxy.insertText("\n")
+                    keyboardTypedText += "\n"
+                } label: {
+                    Image(systemName: "return")
+                        .font(.system(size: 15))
+                        .frame(width: 46, height: 46)
+                        .background(Color(UIColor.systemGray4))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+
+                Button {
+                    inputVC.textDocumentProxy.deleteBackward()
+                    if !keyboardTypedText.isEmpty { keyboardTypedText.removeLast() }
+                } label: {
                     Image(systemName: "delete.left")
                         .font(.system(size: 15))
                         .frame(width: 46, height: 46)
-                        .background(Color(.systemGray4))
+                        .background(Color(UIColor.systemGray4))
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
             }
             .padding(.horizontal, 14)
+
             keyboardRows
                 .padding(.horizontal, 6)
                 .padding(.bottom, 6)
@@ -193,28 +218,29 @@ struct KeyboardView: View {
     }
 
     private var keyboardRows: some View {
-        VStack(spacing: 7) {
+        VStack(spacing: 6) {
             if isNumbers {
-                letterRow(["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"])
-                letterRow(["-", "/", ":", ";", "(", ")", "$", "&", "@", "\""])
+                letterRow(["1","2","3","4","5","6","7","8","9","0"])
+                letterRow(["-","/",":",";","(",")","$","&","@","\""])
                 HStack(spacing: 5) {
                     modifierKey("#+=", width: 52) {}
-                    letterRow([".", ",", "?", "!", "'"])
+                    letterRow([".",",","?","!","'"])
                     modifierKey(systemImage: "delete.left", width: 52) {
                         inputVC.textDocumentProxy.deleteBackward()
+                        if !keyboardTypedText.isEmpty { keyboardTypedText.removeLast() }
                     }
                 }
             } else {
-                letterRow(["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"])
-                letterRow(["a", "s", "d", "f", "g", "h", "j", "k", "l"])
-                    .padding(.horizontal, 18)
+                letterRow(["q","w","e","r","t","y","u","i","o","p"])
+                letterRow(["a","s","d","f","g","h","j","k","l"]).padding(.horizontal, 18)
                 HStack(spacing: 5) {
                     modifierKey(systemImage: isShifted ? "shift.fill" : "shift", active: isShifted, width: 48) {
                         isShifted.toggle()
                     }
-                    letterRow(["z", "x", "c", "v", "b", "n", "m"])
+                    letterRow(["z","x","c","v","b","n","m"])
                     modifierKey(systemImage: "delete.left", width: 48) {
                         inputVC.textDocumentProxy.deleteBackward()
+                        if !keyboardTypedText.isEmpty { keyboardTypedText.removeLast() }
                     }
                 }
             }
@@ -228,12 +254,15 @@ struct KeyboardView: View {
                 }
                 letterKey("space", fontSize: 13) {
                     inputVC.textDocumentProxy.insertText(" ")
+                    keyboardTypedText += " "
                 }
                 modifierKey(".", width: 38) {
                     inputVC.textDocumentProxy.insertText(".")
+                    keyboardTypedText += "."
                 }
                 modifierKey(systemImage: "return", width: 58) {
                     inputVC.textDocumentProxy.insertText("\n")
+                    keyboardTypedText += "\n"
                 }
             }
         }
@@ -243,7 +272,9 @@ struct KeyboardView: View {
         HStack(spacing: 5) {
             ForEach(letters, id: \.self) { letter in
                 letterKey(isShifted && !isNumbers ? letter.uppercased() : letter) {
-                    inputVC.textDocumentProxy.insertText(isShifted && !isNumbers ? letter.uppercased() : letter)
+                    let output = isShifted && !isNumbers ? letter.uppercased() : letter
+                    inputVC.textDocumentProxy.insertText(output)
+                    keyboardTypedText += output
                     if isShifted { isShifted = false }
                 }
             }
@@ -255,12 +286,11 @@ struct KeyboardView: View {
             Text(title)
                 .font(.system(size: fontSize, weight: .regular))
                 .frame(maxWidth: .infinity)
-                .frame(height: 42)
-                .foregroundStyle(Color(red: 0.12, green: 0.15, blue: 0.18))
-                .background(keyGlassBackground(tint: .white, active: false))
-                .overlay(keyHighlight(tint: .white.opacity(0.55)))
+                .frame(height: 44)
+                .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+                .background(Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .shadow(color: Color.black.opacity(0.22), radius: 0, x: 0, y: 1.2)
+                .shadow(color: Color.black.opacity(0.32), radius: 0, x: 0, y: 1)
         }
         .buttonStyle(.plain)
     }
@@ -268,13 +298,12 @@ struct KeyboardView: View {
     private func modifierKey(_ title: String, active: Bool = false, width: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .frame(width: width, height: 42)
-                .foregroundStyle(active ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
-                .background(keyGlassBackground(tint: active ? .brandGreen : .brandVioletDark, active: active))
-                .overlay(keyHighlight(tint: active ? .brandGreen : .brandVioletDark))
+                .font(.system(size: 14, weight: .semibold))
+                .frame(width: width, height: 44)
+                .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
+                .background(active ? Color.brandGreen : Color(UIColor.systemGray4))
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .shadow(color: Color.black.opacity(0.14), radius: 0, x: 0, y: 1.2)
+                .shadow(color: Color.black.opacity(0.22), radius: 0, x: 0, y: 1)
         }
         .buttonStyle(.plain)
     }
@@ -283,53 +312,20 @@ struct KeyboardView: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 16, weight: .semibold))
-                .frame(width: width, height: 42)
-                .foregroundStyle(active ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
-                .background(keyGlassBackground(tint: active ? .brandGreen : .brandVioletDark, active: active))
-                .overlay(keyHighlight(tint: active ? .brandGreen : .brandVioletDark))
+                .frame(width: width, height: 44)
+                .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
+                .background(active ? Color.brandGreen : Color(UIColor.systemGray4))
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .shadow(color: Color.black.opacity(0.14), radius: 0, x: 0, y: 1.2)
+                .shadow(color: Color.black.opacity(0.22), radius: 0, x: 0, y: 1)
         }
         .buttonStyle(.plain)
-    }
-
-    private func keyGlassBackground(tint: Color, active: Bool) -> some View {
-        RoundedRectangle(cornerRadius: 5, style: .continuous)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.brandWhite.opacity(active ? 0.45 : 0.64),
-                                tint.opacity(active ? 0.22 : 0.08),
-                                Color.brandViolet.opacity(active ? 0.16 : 0.08),
-                                Color(.systemGray4).opacity(active ? 0.24 : 0.16),
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            )
-    }
-
-    private func keyHighlight(tint: Color) -> some View {
-        RoundedRectangle(cornerRadius: 5, style: .continuous)
-            .stroke(
-                LinearGradient(
-                    colors: [Color.brandWhite.opacity(0.72), tint.opacity(0.28), Color.brandViolet.opacity(0.18), Color.black.opacity(0.08)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                lineWidth: 0.7
-            )
     }
 
     // MARK: - Spiral card
 
     private var spiralCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("💚  Pause for a sec?")
+            Text("\u{1f49a}  Pause for a sec?")
                 .font(.system(size: 13, weight: .bold))
             Text("Your text has some patterns that might land differently than you intend.")
                 .font(.system(size: 11))
@@ -349,10 +345,7 @@ struct KeyboardView: View {
         .padding(14)
         .background(Color(red: 0.91, green: 0.98, blue: 0.95))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.brandGreen.opacity(0.4), lineWidth: 1)
-        )
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.brandGreen.opacity(0.4), lineWidth: 1))
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }
@@ -361,7 +354,7 @@ struct KeyboardView: View {
 
     private var explanationCard: some View {
         HStack(alignment: .top, spacing: 8) {
-            Text("💡").font(.system(size: 13))
+            Text("\u{1f4a1}").font(.system(size: 13))
             Text(explanation)
                 .font(.system(size: 11))
                 .fixedSize(horizontal: false, vertical: true)
@@ -375,15 +368,10 @@ struct KeyboardView: View {
         .padding(12)
         .background(Color(red: 0.91, green: 0.98, blue: 0.95))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.brandGreen.opacity(0.4), lineWidth: 1)
-        )
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.brandGreen.opacity(0.4), lineWidth: 1))
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }
-
-    // MARK: - Helpers
 
     @ViewBuilder
     private func chipButton(_ title: String, primary: Bool, action: @escaping () -> Void) -> some View {
@@ -392,7 +380,7 @@ struct KeyboardView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .background(primary ? Color.brandGreen : Color(.systemGray4))
+                .background(primary ? Color.brandGreen : Color(UIColor.systemGray4))
                 .foregroundStyle(primary ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
@@ -401,10 +389,10 @@ struct KeyboardView: View {
 
     private func levelKeyTitle(_ value: String) -> String {
         switch value {
-        case "Light": return "L"
+        case "Light":  return "L"
         case "Medium": return "M"
         case "Strong": return "S"
-        default: return value
+        default:       return value
         }
     }
 
@@ -413,10 +401,8 @@ struct KeyboardView: View {
     private func loadSettings() {
         let p = defaults?.string(forKey: "selectedProfile") ?? "Autism"
         profile = (p == "PTSD") ? "PTSD / CPTSD" : p
-
         let stored = defaults?.string(forKey: "rewriteLevel") ?? "Medium"
         level = ["Light", "Medium", "Strong"].contains(stored) ? stored : "Medium"
-
         spiralEnabled = defaults?.object(forKey: "spiralPauseEnabled") == nil
             ? true : (defaults?.bool(forKey: "spiralPauseEnabled") ?? true)
         showExpl = defaults?.object(forKey: "showExplanation") == nil
@@ -427,18 +413,17 @@ struct KeyboardView: View {
 
     private func rewrite() {
         let proxy = inputVC.textDocumentProxy
-
-        // Safety rule: rewrite only the current active field text before the cursor.
-        // Do not use old shared app text and do not merge documentContextAfterInput.
-        // Both can contain stale letters/drafts from earlier writing sessions.
         defaults?.synchronize()
-        let before = proxy.documentContextBeforeInput ?? ""
-        let full = before.trimmingCharacters(in: .whitespacesAndNewlines)
-        let totalToDelete = before.count
+        let before     = proxy.documentContextBeforeInput ?? ""
+        let typedText  = keyboardTypedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cursorText = before.trimmingCharacters(in: .whitespacesAndNewlines)
+        let shouldUseTypedText = !typedText.isEmpty && (cursorText.isEmpty || before.hasSuffix(keyboardTypedText))
+        let full          = shouldUseTypedText ? typedText  : cursorText
+        let totalToDelete = shouldUseTypedText ? keyboardTypedText.count : before.count
 
         guard !full.isEmpty else { showStatus("Type some text first"); return }
 
-        showStatus("Sending \(full.count) chars…")
+        showStatus("Sending \(full.count) chars\u{2026}")
         isRewriting = true
         explanation = ""
         showSpiral  = false
@@ -448,30 +433,22 @@ struct KeyboardView: View {
         Task {
             do {
                 let result = try await callClaude(text: full)
-
-                // Replace only the text before the cursor that we intentionally rewrote.
-                // Do not move into text after the cursor; that may be stale unrelated content.
-
-                // Chunk the deletion so the host app's IPC can keep up.
-                // Tight 3000-call loops overwhelm UITextDocumentProxy and silently drop most.
                 await deleteBackwardChunked(proxy: proxy, count: totalToDelete)
-
                 await insertTextChunked(proxy: proxy, text: result.rewrite)
                 await MainActor.run {
                     isRewriting = false
-
                     if spiralEnabled && result.isSpiraling {
-                        spiralNT      = result.rewrite
-                        spiralGrammar = result.grammarOnly
-                        spiralOriginal = full
-                        spiralOriginalCount = full.count
+                        spiralNT            = result.rewrite
+                        spiralGrammar       = result.grammarOnly
+                        spiralOriginal      = full
+                        spiralOriginalCount = result.rewrite.count
                     }
                 }
-
                 if spiralEnabled && result.isSpiraling {
                     await deleteBackwardChunked(proxy: proxy, count: result.rewrite.count)
                     await insertTextChunked(proxy: proxy, text: full)
                     await MainActor.run {
+                        keyboardTypedText = full
                         defaults?.set(full, forKey: "testBoxFullText")
                         defaults?.set(false, forKey: "keyboardRewriteInProgress")
                         defaults?.synchronize()
@@ -479,6 +456,7 @@ struct KeyboardView: View {
                     }
                 } else {
                     await MainActor.run {
+                        keyboardTypedText = result.rewrite
                         defaults?.set(result.rewrite, forKey: "testBoxFullText")
                         defaults?.set(false, forKey: "keyboardRewriteInProgress")
                         defaults?.synchronize()
@@ -488,7 +466,7 @@ struct KeyboardView: View {
                                 : result.explanation
                             withAnimation { explanation = text }
                         }
-                        showStatus("Rewritten ✓")
+                        showStatus("Rewritten \u{2713}")
                         saveLog(original: full, result: result)
                     }
                 }
@@ -507,33 +485,27 @@ struct KeyboardView: View {
         let chunkSize = 50
         var remaining = count
         while remaining > 0 {
-            let thisChunk = min(chunkSize, remaining)
-            await MainActor.run {
-                for _ in 0..<thisChunk { proxy.deleteBackward() }
-            }
-            remaining -= thisChunk
-            try? await Task.sleep(nanoseconds: 5_000_000) // 5ms
+            let chunk = min(chunkSize, remaining)
+            await MainActor.run { for _ in 0..<chunk { proxy.deleteBackward() } }
+            remaining -= chunk
+            try? await Task.sleep(nanoseconds: 5_000_000)
         }
     }
 
     private func moveCursorToEnd(proxy: UITextDocumentProxy, knownTextCount: Int) async {
-        await MainActor.run {
-            proxy.adjustTextPosition(byCharacterOffset: knownTextCount)
-        }
-        try? await Task.sleep(nanoseconds: 20_000_000) // 20ms
+        await MainActor.run { proxy.adjustTextPosition(byCharacterOffset: knownTextCount) }
+        try? await Task.sleep(nanoseconds: 20_000_000)
     }
 
     private func insertTextChunked(proxy: UITextDocumentProxy, text: String) async {
         let chunkSize = 400
         var index = text.startIndex
         while index < text.endIndex {
-            let next = text.index(index, offsetBy: chunkSize, limitedBy: text.endIndex) ?? text.endIndex
+            let next  = text.index(index, offsetBy: chunkSize, limitedBy: text.endIndex) ?? text.endIndex
             let chunk = String(text[index..<next])
-            await MainActor.run {
-                proxy.insertText(chunk)
-            }
+            await MainActor.run { proxy.insertText(chunk) }
             index = next
-            try? await Task.sleep(nanoseconds: 5_000_000) // 5ms
+            try? await Task.sleep(nanoseconds: 5_000_000)
         }
     }
 
@@ -548,13 +520,14 @@ struct KeyboardView: View {
             await deleteBackwardChunked(proxy: proxy, count: deleteCount)
             await insertTextChunked(proxy: proxy, text: text)
             await MainActor.run {
+                keyboardTypedText = text
                 defaults?.set(text, forKey: "testBoxFullText")
                 defaults?.set(false, forKey: "keyboardRewriteInProgress")
                 defaults?.synchronize()
                 spiralOriginal = ""
                 spiralOriginalCount = 0
                 withAnimation { showSpiral = false }
-                showStatus("Applied ✓")
+                showStatus("Applied \u{2713}")
             }
         }
     }
@@ -578,14 +551,13 @@ struct KeyboardView: View {
         guard let apiKey = defaults?.string(forKey: "claudeAPIKey"), !apiKey.isEmpty else {
             throw NBError.noKey
         }
-
         let system = buildSystem()
         let prompt = "Text:\n\(text)\n\nReply with ONLY valid JSON."
 
         var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
         req.httpMethod = "POST"
-        req.setValue(apiKey,           forHTTPHeaderField: "x-api-key")
-        req.setValue("2023-06-01",     forHTTPHeaderField: "anthropic-version")
+        req.setValue(apiKey,             forHTTPHeaderField: "x-api-key")
+        req.setValue("2023-06-01",       forHTTPHeaderField: "anthropic-version")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 90
         req.httpBody = try JSONSerialization.data(withJSONObject: [
@@ -598,7 +570,6 @@ struct KeyboardView: View {
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw NBError.apiFailed(0) }
         if http.statusCode != 200 {
-            // Try to surface Claude's error message so user sees the real problem
             if let errJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let err = errJSON["error"] as? [String: Any],
                let msg = err["message"] as? String {
@@ -610,11 +581,9 @@ struct KeyboardView: View {
               let content = (json["content"] as? [[String: Any]])?.first?["text"] as? String
         else { throw NBError.badResponse }
 
-        // Try to parse JSON from Claude's response — strip markdown fences if present
         let cleaned = extractJSON(from: content)
         if let d = cleaned.data(using: .utf8),
            let parsed = try? JSONSerialization.jsonObject(with: d) as? [String: Any] {
-            // Prefer paragraphs array (avoids JSON \n\n escaping issues); fall back to rewrite string
             let rewrite: String
             if let paras = parsed["paragraphs"] as? [String], !paras.isEmpty {
                 rewrite = paras.joined(separator: "\n\n")
@@ -625,61 +594,52 @@ struct KeyboardView: View {
             }
             if !rewrite.isEmpty {
                 return ClaudeResult(
-                    rewrite:      rewrite,
-                    explanation:  parsed["explanation"]  as? String   ?? "",
-                    distortions:  parsed["distortions"]  as? [String] ?? [],
-                    grammarOnly:  parsed["grammar_only"] as? String   ?? ""
+                    rewrite:     rewrite,
+                    explanation: parsed["explanation"]  as? String   ?? "",
+                    distortions: parsed["distortions"]  as? [String] ?? [],
+                    grammarOnly: parsed["grammar_only"] as? String   ?? ""
                 )
             }
         }
-        // Fallback: use plain content — but strip any obvious JSON noise
         return ClaudeResult(
             rewrite: cleaned.trimmingCharacters(in: .whitespacesAndNewlines),
             explanation: "", distortions: [], grammarOnly: ""
         )
     }
 
-    /// Extracts JSON from a response that may be wrapped in ```json ... ``` or have
-    /// extra text before/after. Returns the inner JSON object string, or the input unchanged.
     private func extractJSON(from raw: String) -> String {
         var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Strip markdown fences
         if s.hasPrefix("```") {
-            if let firstNL = s.firstIndex(of: "\n") {
-                s = String(s[s.index(after: firstNL)...])
-            }
-            if s.hasSuffix("```") {
-                s = String(s.dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
+            if let firstNL = s.firstIndex(of: "\n") { s = String(s[s.index(after: firstNL)...]) }
+            if s.hasSuffix("```") { s = String(s.dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines) }
         }
-        // If there's still extra text, grab the first { ... } block
-        if let openIdx = s.firstIndex(of: "{"),
-           let closeIdx = s.lastIndex(of: "}"),
-           openIdx < closeIdx {
-            return String(s[openIdx...closeIdx])
+        if let open = s.firstIndex(of: "{"), let close = s.lastIndex(of: "}"), open < close {
+            return String(s[open...close])
         }
         return s
     }
+
+    // MARK: - System prompt (ND \u{2192} NT only)
 
     private func buildSystem() -> String {
         let instruction = levelInstruction(level: level, profile: profile)
         let adaptive    = adaptiveContext()
         return """
-        You are a communication assistant that translates ND communication into NT-readable communication for a \(profile) user. \(instruction)\(adaptive)
+        You are ToneLayer, a communication assistant that helps neurodivergent people be understood by neurotypical readers. Your job is to translate the structure and signals of ND communication \u{2014} not to delete the person's voice, meaning, or emotional content. Direction: ND \u{2192} NT. Profile: \(profile). \(instruction)\(adaptive)
 
         Rewrite the entire text the user provided from ND style into NT style. Do not stop halfway, do not summarize only the beginning, and do not omit later points just because the text is long or messy. Preserve the user's intended message, requests, constraints, and necessary context from the whole original, but translate the structure, order, tone, and phrasing into what an NT reader would naturally expect.
 
-        The "paragraphs" rewrite is the primary output. Do not shorten, flatten, or simplify the main rewrite to make room for grammar_only. Generate grammar_only after the main rewrite, and keep it secondary.
+        The "paragraphs" array is the primary output. For any text longer than 3 sentences, you MUST return at least 2 paragraphs \u{2014} never collapse everything into a single string. Brain dumps and multi-topic text must always be organized into multiple paragraphs.
 
-        This is a teaching tool. The explanation must teach — don't just say what changed, say WHY that change makes the text land better with NT readers. Help the user recognise their own patterns over time.
+        The explanation must teach \u{2014} don't just say what changed, say WHY that change makes the text land better with NT readers.
 
-        Always respond with ONLY valid JSON — no markdown, no code fences, no extra text.
+        Always respond with ONLY valid JSON \u{2014} no markdown, no code fences, no extra text.
 
         {
           "paragraphs": ["first paragraph as a plain string", "second paragraph as a plain string", "third paragraph if needed"],
-          "explanation": "REQUIRED: one sentence explaining what ND pattern you addressed and why the change makes it more NT-legible (e.g. 'Moved the main ask to the first sentence — NT readers need to know the purpose before the context, not after.').",
-          "distortions": ["any cognitive distortions found, e.g. catastrophizing, mind-reading — empty array if none"],
-          "grammar_only": "secondary option: grammar-fixed version of the full original that keeps the user's ND structure and meaning but fixes grammar, spelling, punctuation, and obvious typos. Keep this secondary to paragraphs."
+          "explanation": "REQUIRED: one sentence explaining what ND pattern you addressed and why the change makes it more NT-legible.",
+          "distortions": ["any cognitive distortions found \u{2014} empty array if none"],
+          "grammar_only": "grammar-fixed version of the full original that keeps the user's ND structure but fixes grammar, spelling, and punctuation."
         }
         """
     }
@@ -687,70 +647,49 @@ struct KeyboardView: View {
     private func adaptiveContext() -> String {
         let patterns = LogStore.shared.topPatterns()
         guard !patterns.isEmpty else { return "" }
-        let list = patterns.map { "\($0.pattern) (\($0.count)×)" }.joined(separator: ", ")
+        let list = patterns.map { "\($0.pattern) (\($0.count)\u{d7})" }.joined(separator: ", ")
         return "\n\nThis user's recurring patterns: \(list). Be especially attentive to these."
     }
 
-    // MARK: - Level instructions (Light / Medium / Strong = how NT the output goes)
+    // MARK: - Level instructions (ND \u{2192} NT)
 
     private func levelInstruction(level: String, profile: String) -> String {
         switch profile {
-
         case "ADHD":
             switch level {
-            case "Light":
-                return "Make minimal changes. Fix typos and grammar. If the main point is completely buried, move it to the first sentence. Preserve all content and the user's voice. This is a light polish — do not cut or restructure."
-            case "Medium":
-                return "Restructure from ND flow into NT readability. Move the main point to the first sentence. Group related ideas into short paragraphs — each paragraph covers one topic. Cut obvious repetition but keep all distinct ideas and the user's voice intact. The rewrite MUST have multiple paragraphs separated by blank lines. NT readers should be able to follow without effort."
-            default: // Strong
-                return "Make a strong ND-to-NT rewrite for ADHD communication. This should read almost like a clear, practical NT message: concise, direct, organized, emotionally regulated, and low-friction for the reader. First sentence states the purpose. Remove spirals, side quests, metaphors, repeated urgency, internal noise, and process-heavy explanation. Keep only the necessary meaning, request, constraints, and useful context. If the text is asking for help, name the actual support need in one clean sentence."
+            case "Light":  return "Make minimal changes. Fix typos and grammar. If the main point is completely buried, move it to the first sentence. Preserve all content and the user's voice."
+            case "Medium": return "Restructure from ND flow into NT readability. Move the main point to the first sentence. Group related ideas into short paragraphs. Cut obvious repetition but keep all distinct ideas and the user's voice. Output MUST have multiple paragraphs."
+            default:       return "Reorganize and signal this content clearly for NT readers while keeping the user's voice and meaning fully intact. Lead with what the person needs or is asking. Break into clear paragraphs \u{2014} each covering one idea. Keep emotional content and connections \u{2014} sequence them so they read as deliberate. This is translation, not deletion. Output MUST be multiple paragraphs."
             }
-
         case "Autism":
             switch level {
-            case "Light":
-                return "Make a light ND-to-NT rewrite. Fix typos. Add a brief greeting or sign-off only if completely absent. Keep all content and voice intact."
-            case "Medium":
-                return "Make a medium ND-to-NT rewrite. Add appropriate social warmth — a genuine greeting, warm transitions, polite closing. Decode any implied meaning and state it directly. Keep all literal content. NT readers should feel connected, not just informed."
-            default: // Strong
-                return "Make a strong ND-to-NT rewrite using NT social norms. Add natural social flow — appropriate opening, warmth throughout, clear closing. Remove overly blunt phrasing where it would land poorly. Preserve all the user's meaning. Should read as something an NT person would naturally write to build or maintain a relationship."
+            case "Light":  return "Make a light ND-to-NT rewrite. Fix typos. Add a brief greeting or sign-off only if completely absent. Keep all content and voice intact."
+            case "Medium": return "Make a medium ND-to-NT rewrite. Add appropriate social warmth \u{2014} a genuine greeting, warm transitions, polite closing. Decode any implied meaning and state it directly. Keep all literal content. Use multiple paragraphs."
+            default:       return "Make a strong ND-to-NT rewrite using NT social norms. Add natural social flow \u{2014} opening, warmth, clear closing. Remove overly blunt phrasing. Preserve all meaning. Break into multiple paragraphs."
             }
-
         case "PTSD / CPTSD":
             switch level {
-            case "Light":
-                return "Make a light ND-to-NT rewrite. Soften the most reactive or escalating phrases only. Keep all content and the user's voice intact."
-            case "Medium":
-                return "Make a medium ND-to-NT rewrite. Remove over-justification, excessive apology, and defensive language. Rewrite hedging sentences to be direct. Calm tone throughout. NT readers should feel a steady, confident person wrote this."
-            default: // Strong
-                return "Make a strong ND-to-NT rewrite into calm, grounded communication. Remove all defensive language, over-explanation, and anticipatory apology. Write with quiet confidence — what a calm, clear-headed NT person would write with the same message. No escalating language, no hedging."
+            case "Light":  return "Make a light ND-to-NT rewrite. Soften the most reactive or escalating phrases only. Keep all content and the user's voice intact."
+            case "Medium": return "Remove over-justification, excessive apology, and defensive language. Rewrite hedging sentences to be direct. Calm tone throughout. Use multiple paragraphs."
+            default:       return "Make a strong ND-to-NT rewrite into calm, grounded communication. Remove all defensive language, over-explanation, and anticipatory apology. Break into multiple paragraphs \u{2014} each one making a clear, direct point. No escalating language."
             }
-
         case "PTSD + Autism":
             switch level {
-            case "Light":
-                return "Make a light ND-to-NT rewrite. Soften the most reactive phrases and add a greeting if absent. Minimal changes otherwise."
-            case "Medium":
-                return "Make a medium ND-to-NT rewrite. Remove over-justification and add social warmth. Direct but kind. Cut defensive hedging while adding genuine warmth and connection."
-            default: // Strong
-                return "Make a strong ND-to-NT rewrite: warm, direct, calm, no over-justification, no idioms. What a warm, grounded NT person would write with the same message."
+            case "Light":  return "Soften the most reactive phrases and add a greeting if absent. Minimal changes otherwise."
+            case "Medium": return "Remove over-justification and add social warmth. Direct but kind. Use multiple paragraphs."
+            default:       return "Warm, direct, calm, no over-justification. Break into multiple paragraphs \u{2014} one idea per paragraph."
             }
-
         case "PTSD + ADHD":
             switch level {
-            case "Light":
-                return "Make a light ND-to-NT rewrite. Soften the most reactive phrasing and move the main point closer to the start if buried. Minimal changes otherwise."
-            case "Medium":
-                return "Make a medium ND-to-NT rewrite. Lead with the main point. Cut the worst tangents. Remove defensive over-explanation. Calmer and more focused."
-            default: // Strong
-                return "Make a strong ND-to-NT rewrite for PTSD + ADHD communication. This should be concise, calm, direct, and almost businesslike. Lead with the point. Remove spirals, defensive language, repeated urgency, over-explanation, and internal processing. Keep the valid need and any necessary context. If the text is asking for help, name the support need in one clean sentence."
+            case "Light":  return "Soften the most reactive phrasing and move the main point closer to the start if buried. Minimal changes otherwise."
+            case "Medium": return "Lead with the main point. Cut the worst tangents. Remove defensive over-explanation. Use multiple paragraphs. Calmer and more focused."
+            default:       return "Reorganize clearly for NT readers while keeping the user's voice. Lead with the main point. Break into multiple paragraphs. Remove defensive language. Output MUST be multiple paragraphs."
             }
-
         default:
             switch level {
             case "Light":  return "Make a light ND-to-NT rewrite. Fix typos and grammar only. Keep all content and voice intact."
-            case "Medium": return "Restructure ND communication into NT-readable clarity. Main point first. Cut obvious repetition. Keep the user's voice and all distinct substance."
-            default:       return "Fully translate ND communication for NT readers. Clear, direct, no unnecessary content. What an NT person would naturally write with the same intent, while preserving the whole message."
+            case "Medium": return "Restructure ND communication into NT-readable clarity. Main point first. Cut obvious repetition. Use multiple paragraphs. Keep the user's voice."
+            default:       return "Fully translate ND communication for NT readers. Clear, direct, organized into multiple paragraphs. Preserve the whole message."
             }
         }
     }
@@ -778,15 +717,15 @@ enum NBError: LocalizedError {
     case badResponse
     var errorDescription: String? {
         switch self {
-        case .noKey:                return "No API key — add it in the ToneLayer app"
-        case .apiFailed(let code):  return "API failed (HTTP \(code))"
-        case .apiMessage(let s):    return s
-        case .badResponse:          return "Unexpected API response"
+        case .noKey:               return "No API key \u{2014} add it in the ToneLayer app"
+        case .apiFailed(let code): return "API failed (HTTP \(code))"
+        case .apiMessage(let s):   return s
+        case .badResponse:         return "Unexpected API response"
         }
     }
 }
 
-// MARK: - Shared log model (must match ContentView.swift)
+// MARK: - Shared log model
 
 struct RewriteEntry: Codable {
     let id: UUID
@@ -823,8 +762,7 @@ final class LogStore {
         var entries = load()
         entries.append(entry)
         if entries.count > 500 { entries = Array(entries.suffix(500)) }
-        guard let url = logURL,
-              let data = try? JSONEncoder().encode(entries) else { return }
+        guard let url = logURL, let data = try? JSONEncoder().encode(entries) else { return }
         try? data.write(to: url, options: .atomic)
     }
 
