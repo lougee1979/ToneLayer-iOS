@@ -40,7 +40,10 @@ struct KeyboardView: View {
     private let appGroupID = "group.com.alden.tonelayer"
     private var defaults: UserDefaults? { UserDefaults(suiteName: appGroupID) }
 
-    @State private var profile           = "Autism"
+    @State private var profileADHD    = false
+    @State private var profileAutism  = true
+    @State private var profilePTSD    = false
+    @State private var profileCPTSD   = false
     @State private var level             = "Medium"
     @State private var isRewriting       = false
     @State private var status            = ""
@@ -51,12 +54,20 @@ struct KeyboardView: View {
     @State private var isNumbers         = false
     @State private var keyboardTypedText = ""
 
-    // Spiral card state
     @State private var showSpiral          = false
     @State private var spiralNT            = ""
     @State private var spiralGrammar       = ""
     @State private var spiralOriginal      = ""
     @State private var spiralOriginalCount = 0
+
+    private var activeProfileLabel: String {
+        var p: [String] = []
+        if profileADHD   { p.append("ADHD") }
+        if profileAutism { p.append("Autism") }
+        if profilePTSD   { p.append("PTSD") }
+        if profileCPTSD  { p.append("CPTSD") }
+        return p.isEmpty ? "General ND" : p.joined(separator: "+")
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -85,7 +96,7 @@ struct KeyboardView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("ToneLayer")
                     .font(.system(size: 11, weight: .bold))
-                Text(profile)
+                Text(activeProfileLabel)
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
@@ -325,7 +336,7 @@ struct KeyboardView: View {
 
     private var spiralCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("\u{1f49a}  Pause for a sec?")
+            Text("\u{1F49A}  Pause for a sec?")
                 .font(.system(size: 13, weight: .bold))
             Text("Your text has some patterns that might land differently than you intend.")
                 .font(.system(size: 11))
@@ -354,7 +365,7 @@ struct KeyboardView: View {
 
     private var explanationCard: some View {
         HStack(alignment: .top, spacing: 8) {
-            Text("\u{1f4a1}").font(.system(size: 13))
+            Text("\u{1F4A1}").font(.system(size: 13))
             Text(explanation)
                 .font(.system(size: 11))
                 .fixedSize(horizontal: false, vertical: true)
@@ -399,8 +410,11 @@ struct KeyboardView: View {
     // MARK: - Load settings
 
     private func loadSettings() {
-        let p = defaults?.string(forKey: "selectedProfile") ?? "Autism"
-        profile = (p == "PTSD") ? "PTSD / CPTSD" : p
+        profileADHD   = defaults?.bool(forKey: "ndprofile.adhd") ?? false
+        profileAutism = defaults?.object(forKey: "ndprofile.autism") == nil
+            ? true : (defaults?.bool(forKey: "ndprofile.autism") ?? true)
+        profilePTSD   = defaults?.bool(forKey: "ndprofile.ptsd") ?? false
+        profileCPTSD  = defaults?.bool(forKey: "ndprofile.cptsd") ?? false
         let stored = defaults?.string(forKey: "rewriteLevel") ?? "Medium"
         level = ["Light", "Medium", "Strong"].contains(stored) ? stored : "Medium"
         spiralEnabled = defaults?.object(forKey: "spiralPauseEnabled") == nil
@@ -462,7 +476,7 @@ struct KeyboardView: View {
                         defaults?.synchronize()
                         if showExpl {
                             let text = result.explanation.isEmpty
-                                ? "Rewritten at \(level) level for your \(profile) profile."
+                                ? "Rewritten at \(level) for \(activeProfileLabel)."
                                 : result.explanation
                             withAnimation { explanation = text }
                         }
@@ -619,79 +633,60 @@ struct KeyboardView: View {
         return s
     }
 
-    // MARK: - System prompt (ND \u{2192} NT only)
+    // MARK: - System prompt (ND -> NT)
 
     private func buildSystem() -> String {
-        let instruction = levelInstruction(level: level, profile: profile)
-        let adaptive    = adaptiveContext()
+        let profileInstr = buildProfileInstructions()
+        let adaptive     = adaptiveContext()
         return """
-        You are ToneLayer, a communication assistant that helps neurodivergent people be understood by neurotypical readers. Your job is to translate the structure and signals of ND communication \u{2014} not to delete the person's voice, meaning, or emotional content. Direction: ND \u{2192} NT. Profile: \(profile). \(instruction)\(adaptive)
+        You are ToneLayer, a communication assistant that helps neurodivergent people be understood by neurotypical readers. Direction: ND \u{2192} NT. Active profile: \(activeProfileLabel).
 
-        Rewrite the entire text the user provided from ND style into NT style. Do not stop halfway, do not summarize only the beginning, and do not omit later points just because the text is long or messy. Preserve the user's intended message, requests, constraints, and necessary context from the whole original, but translate the structure, order, tone, and phrasing into what an NT reader would naturally expect.
+        \(profileInstr)
 
-        The "paragraphs" array is the primary output. For any text longer than 3 sentences, you MUST return at least 2 paragraphs \u{2014} never collapse everything into a single string. Brain dumps and multi-topic text must always be organized into multiple paragraphs.
+        Rewrite the entire text from ND style into NT style. Preserve the user's intended message, requests, constraints, and necessary context. Translate structure, order, tone, and phrasing into what an NT reader naturally expects.
 
-        The explanation must teach \u{2014} don't just say what changed, say WHY that change makes the text land better with NT readers.
+        Level: \(level).
+        Light: fix typos and grammar; move main point first if buried; preserve all content.
+        Medium: restructure for NT readability; main point first; group related ideas; cut repetition; use multiple paragraphs.
+        Strong: full ND-to-NT translation; clear, direct, organized; lead with the main point; break into paragraphs; remove spirals and over-explanation. Output MUST be multiple paragraphs.
 
-        Always respond with ONLY valid JSON \u{2014} no markdown, no code fences, no extra text.
+        The "paragraphs" array is the primary output. For text longer than 3 sentences, return at least 2 paragraphs.\(adaptive)
 
+        Always respond with ONLY valid JSON:
         {
-          "paragraphs": ["first paragraph as a plain string", "second paragraph as a plain string", "third paragraph if needed"],
-          "explanation": "REQUIRED: one sentence explaining what ND pattern you addressed and why the change makes it more NT-legible.",
-          "distortions": ["any cognitive distortions found \u{2014} empty array if none"],
-          "grammar_only": "grammar-fixed version of the full original that keeps the user's ND structure but fixes grammar, spelling, and punctuation."
+          "paragraphs": ["first paragraph", "second paragraph"],
+          "explanation": "one sentence explaining what ND pattern you addressed and why the change helps NT readers",
+          "distortions": ["cognitive distortions found \u{2014} empty array if none"],
+          "grammar_only": "grammar-fixed version keeping the user's ND structure"
         }
         """
+    }
+
+    private func buildProfileInstructions() -> String {
+        var parts: [String] = []
+        if profileADHD {
+            parts.append("ADHD: move main point first, use short clear sentences, avoid buried asks, make urgency explicit, cut tangents.")
+        }
+        if profileAutism {
+            parts.append("Autism: make meaning fully literal, remove social subtext and implied expectations, define vague phrases, state the ask directly.")
+        }
+        if profilePTSD {
+            parts.append("PTSD: lower all threat signals, add reassurance where appropriate, avoid vague warnings or power-heavy phrasing, keep tone calm.")
+        }
+        if profileCPTSD {
+            parts.append("CPTSD: avoid language implying punishment or conditional approval, be warm and non-threatening, make intent explicit, address fawn and freeze response patterns.")
+        }
+        if parts.isEmpty {
+            return "General ND: remove ambiguity, make the ask explicit, add necessary context, state urgency, give a concrete next step."
+        }
+        return parts.joined(separator: " ")
     }
 
     private func adaptiveContext() -> String {
         let patterns = LogStore.shared.topPatterns()
         guard !patterns.isEmpty else { return "" }
-        let list = patterns.map { "\($0.pattern) (\($0.count)\u{d7})" }.joined(separator: ", ")
+        let list = patterns.map { "\($0.pattern) (\($0.count)\u{D7})" }.joined(separator: ", ")
         return "\n\nThis user's recurring patterns: \(list). Be especially attentive to these."
-    }
-
-    // MARK: - Level instructions (ND \u{2192} NT)
-
-    private func levelInstruction(level: String, profile: String) -> String {
-        switch profile {
-        case "ADHD":
-            switch level {
-            case "Light":  return "Make minimal changes. Fix typos and grammar. If the main point is completely buried, move it to the first sentence. Preserve all content and the user's voice."
-            case "Medium": return "Restructure from ND flow into NT readability. Move the main point to the first sentence. Group related ideas into short paragraphs. Cut obvious repetition but keep all distinct ideas and the user's voice. Output MUST have multiple paragraphs."
-            default:       return "Reorganize and signal this content clearly for NT readers while keeping the user's voice and meaning fully intact. Lead with what the person needs or is asking. Break into clear paragraphs \u{2014} each covering one idea. Keep emotional content and connections \u{2014} sequence them so they read as deliberate. This is translation, not deletion. Output MUST be multiple paragraphs."
-            }
-        case "Autism":
-            switch level {
-            case "Light":  return "Make a light ND-to-NT rewrite. Fix typos. Add a brief greeting or sign-off only if completely absent. Keep all content and voice intact."
-            case "Medium": return "Make a medium ND-to-NT rewrite. Add appropriate social warmth \u{2014} a genuine greeting, warm transitions, polite closing. Decode any implied meaning and state it directly. Keep all literal content. Use multiple paragraphs."
-            default:       return "Make a strong ND-to-NT rewrite using NT social norms. Add natural social flow \u{2014} opening, warmth, clear closing. Remove overly blunt phrasing. Preserve all meaning. Break into multiple paragraphs."
-            }
-        case "PTSD / CPTSD":
-            switch level {
-            case "Light":  return "Make a light ND-to-NT rewrite. Soften the most reactive or escalating phrases only. Keep all content and the user's voice intact."
-            case "Medium": return "Remove over-justification, excessive apology, and defensive language. Rewrite hedging sentences to be direct. Calm tone throughout. Use multiple paragraphs."
-            default:       return "Make a strong ND-to-NT rewrite into calm, grounded communication. Remove all defensive language, over-explanation, and anticipatory apology. Break into multiple paragraphs \u{2014} each one making a clear, direct point. No escalating language."
-            }
-        case "PTSD + Autism":
-            switch level {
-            case "Light":  return "Soften the most reactive phrases and add a greeting if absent. Minimal changes otherwise."
-            case "Medium": return "Remove over-justification and add social warmth. Direct but kind. Use multiple paragraphs."
-            default:       return "Warm, direct, calm, no over-justification. Break into multiple paragraphs \u{2014} one idea per paragraph."
-            }
-        case "PTSD + ADHD":
-            switch level {
-            case "Light":  return "Soften the most reactive phrasing and move the main point closer to the start if buried. Minimal changes otherwise."
-            case "Medium": return "Lead with the main point. Cut the worst tangents. Remove defensive over-explanation. Use multiple paragraphs. Calmer and more focused."
-            default:       return "Reorganize clearly for NT readers while keeping the user's voice. Lead with the main point. Break into multiple paragraphs. Remove defensive language. Output MUST be multiple paragraphs."
-            }
-        default:
-            switch level {
-            case "Light":  return "Make a light ND-to-NT rewrite. Fix typos and grammar only. Keep all content and voice intact."
-            case "Medium": return "Restructure ND communication into NT-readable clarity. Main point first. Cut obvious repetition. Use multiple paragraphs. Keep the user's voice."
-            default:       return "Fully translate ND communication for NT readers. Clear, direct, organized into multiple paragraphs. Preserve the whole message."
-            }
-        }
     }
 
     // MARK: - Log
@@ -699,7 +694,7 @@ struct KeyboardView: View {
     private func saveLog(original: String, result: ClaudeResult) {
         let entry = RewriteEntry(
             id: UUID(), timestamp: Date(),
-            profile: profile, mode: level,
+            profile: activeProfileLabel, mode: level,
             originalText: original, rewrittenText: result.rewrite,
             explanation: result.explanation,
             distortions: result.distortions, spiraling: result.isSpiraling
