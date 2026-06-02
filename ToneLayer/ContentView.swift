@@ -60,6 +60,7 @@ struct ContentView: View {
 
     @State private var profileADHD   = false
     @State private var profileAutism  = true
+    @State private var profileAUDHD   = false
     @State private var profilePTSD    = false
     @State private var profileCPTSD   = false
     @State private var rewriteLevel        = "Medium"
@@ -122,8 +123,12 @@ struct ContentView: View {
 
     private var activeProfileLabel: String {
         var p: [String] = []
-        if profileADHD   { p.append("ADHD") }
-        if profileAutism { p.append("Autism") }
+        if profileAUDHD {
+            p.append("AUDHD")
+        } else {
+            if profileADHD   { p.append("ADHD") }
+            if profileAutism { p.append("Autism") }
+        }
         if profilePTSD   { p.append("PTSD") }
         if profileCPTSD  { p.append("CPTSD") }
         return p.isEmpty ? "General ND" : p.joined(separator: " + ")
@@ -131,11 +136,15 @@ struct ContentView: View {
 
     private func buildProfileInstructions() -> String {
         var parts: [String] = []
-        if profileADHD {
-            parts.append("ADHD: move main point first, use short clear sentences, avoid buried asks, make urgency explicit, cut tangents.")
-        }
-        if profileAutism {
-            parts.append("Autism: make meaning fully literal, remove social subtext and implied expectations, define vague phrases, state the ask directly.")
+        if profileAUDHD || (profileADHD && profileAutism) {
+            parts.append("AUDHD: combine ADHD and Autism communication traits \u{2014} put the main point first, use ultra-literal language, eliminate all implied expectations and social subtext, define every vague phrase, make urgency explicit, keep sentences short with a concrete next step.")
+        } else {
+            if profileADHD {
+                parts.append("ADHD: move main point first, use short clear sentences, avoid buried asks, make urgency explicit, cut tangents.")
+            }
+            if profileAutism {
+                parts.append("Autism: make meaning fully literal, remove social subtext and implied expectations, define vague phrases, state the ask directly.")
+            }
         }
         if profilePTSD {
             parts.append("PTSD: lower all threat signals, add reassurance where appropriate, avoid vague warnings or power-heavy phrasing, keep tone calm.")
@@ -151,11 +160,13 @@ struct ContentView: View {
     private func syncProfileSettings() {
         UserDefaults.standard.set(profileADHD,   forKey: "ndprofile.adhd")
         UserDefaults.standard.set(profileAutism, forKey: "ndprofile.autism")
+        UserDefaults.standard.set(profileAUDHD,  forKey: "ndprofile.audhd")
         UserDefaults.standard.set(profilePTSD,   forKey: "ndprofile.ptsd")
         UserDefaults.standard.set(profileCPTSD,  forKey: "ndprofile.cptsd")
         sharedDefaults.set(activeProfileLabel,   forKey: selectedProfileKey)
         sharedDefaults.set(profileADHD,          forKey: "ndprofile.adhd")
         sharedDefaults.set(profileAutism,        forKey: "ndprofile.autism")
+        sharedDefaults.set(profileAUDHD,         forKey: "ndprofile.audhd")
         sharedDefaults.set(profilePTSD,          forKey: "ndprofile.ptsd")
         sharedDefaults.set(profileCPTSD,         forKey: "ndprofile.cptsd")
         sharedDefaults.synchronize()
@@ -244,7 +255,7 @@ struct ContentView: View {
         return dailyTips[(day - 1) % dailyTips.count]
     }
 
-    // Teaching card — always visible unless toggled off in Options
+    // Teaching card \u{2014} always visible unless toggled off in Options
     private var teachingCard: some View {
         Group {
             if showExplanation {
@@ -595,19 +606,20 @@ struct ContentView: View {
             Label("ND Profile", systemImage: "person.crop.circle")
                 .font(.title3.weight(.semibold))
 
-            Text("Check all that apply. Combinations are handled automatically \u{2014} no need to pick a mixed option.")
+            Text("Check all that apply. AUDHD = ADHD + Autism combined. Combinations build the AI instructions automatically.")
                 .foregroundStyle(.secondary)
                 .font(.subheadline)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 profileCheckbox("ADHD",   isOn: $profileADHD)
                 profileCheckbox("Autism", isOn: $profileAutism)
+                profileCheckbox("AUDHD",  isOn: $profileAUDHD)
                 profileCheckbox("PTSD",   isOn: $profilePTSD)
                 profileCheckbox("CPTSD",  isOn: $profileCPTSD)
             }
 
-            if profileAutism && profileADHD {
-                Label("AUDHD profile active", systemImage: "checkmark.circle.fill")
+            if activeProfileLabel != "General ND" {
+                Label("Active: \(activeProfileLabel)", systemImage: "checkmark.circle.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.brandVioletDark)
             }
@@ -854,6 +866,7 @@ struct ContentView: View {
         profileADHD   = UserDefaults.standard.bool(forKey: "ndprofile.adhd")
         profileAutism = UserDefaults.standard.object(forKey: "ndprofile.autism") == nil
             ? true : UserDefaults.standard.bool(forKey: "ndprofile.autism")
+        profileAUDHD  = UserDefaults.standard.bool(forKey: "ndprofile.audhd")
         profilePTSD   = UserDefaults.standard.bool(forKey: "ndprofile.ptsd")
         profileCPTSD  = UserDefaults.standard.bool(forKey: "ndprofile.cptsd")
         syncProfileSettings()
@@ -1018,7 +1031,7 @@ struct ContentView: View {
             "model": "claude-haiku-4-5-20251001",
             "max_tokens": 8192,
             "system": buildComposerSystem(),
-            "messages": [["role": "user", "content": "Text:\n\(text)\n\nReply with ONLY valid JSON."]],
+            "messages": [["role": "user", "content": "Text:\n\(input)\n\nReply with ONLY valid JSON."]],
         ])
 
         let (data, response) = try await URLSession.shared.data(for: req)
@@ -1071,14 +1084,14 @@ struct ContentView: View {
         Medium: balanced ND-to-NT rewrite; structure the message for NT readers while still sounding like the user.
         Strong: full ND-to-NT translation; concise, direct, emotionally neutral, low-friction for the reader, main point first, support need named when possible. Remove spirals, repeated urgency, metaphors, side quests, and internal processing unless they are strictly necessary.
 
-        The "paragraphs" rewrite is the primary output. Do not shorten or flatten it to make room for grammar_only.
+        The \"paragraphs\" rewrite is the primary output. Do not shorten or flatten it to make room for grammar_only.
 
         Always respond with ONLY valid JSON:
         {
-          "paragraphs": ["rewritten paragraph one", "rewritten paragraph two"],
-          "explanation": "one sentence explaining what changed and why it is more NT-readable",
-          "distortions": ["any cognitive distortions found, empty array if none"],
-          "grammar_only": "grammar-fixed version of the full original that keeps the user's ND structure and meaning"
+          \"paragraphs\": [\"rewritten paragraph one\", \"rewritten paragraph two\"],
+          \"explanation\": \"one sentence explaining what changed and why it is more NT-readable\",
+          \"distortions\": [\"any cognitive distortions found, empty array if none\"],
+          \"grammar_only\": \"grammar-fixed version of the full original that keeps the user's ND structure and meaning\"
         }
         """
     }
