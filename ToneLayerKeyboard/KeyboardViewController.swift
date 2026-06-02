@@ -42,6 +42,7 @@ struct KeyboardView: View {
 
     @State private var profileADHD    = false
     @State private var profileAutism  = true
+    @State private var profileAUDHD   = false
     @State private var profilePTSD    = false
     @State private var profileCPTSD   = false
     @State private var level             = "Medium"
@@ -62,8 +63,12 @@ struct KeyboardView: View {
 
     private var activeProfileLabel: String {
         var p: [String] = []
-        if profileADHD   { p.append("ADHD") }
-        if profileAutism { p.append("Autism") }
+        if profileAUDHD {
+            p.append("AUDHD")
+        } else {
+            if profileADHD   { p.append("ADHD") }
+            if profileAutism { p.append("Autism") }
+        }
         if profilePTSD   { p.append("PTSD") }
         if profileCPTSD  { p.append("CPTSD") }
         return p.isEmpty ? "General ND" : p.joined(separator: "+")
@@ -413,14 +418,15 @@ struct KeyboardView: View {
         profileADHD   = defaults?.bool(forKey: "ndprofile.adhd") ?? false
         profileAutism = defaults?.object(forKey: "ndprofile.autism") == nil
             ? true : (defaults?.bool(forKey: "ndprofile.autism") ?? true)
+        profileAUDHD  = defaults?.bool(forKey: "ndprofile.audhd") ?? false
         profilePTSD   = defaults?.bool(forKey: "ndprofile.ptsd") ?? false
         profileCPTSD  = defaults?.bool(forKey: "ndprofile.cptsd") ?? false
         let stored = defaults?.string(forKey: "rewriteLevel") ?? "Medium"
         level = ["Light", "Medium", "Strong"].contains(stored) ? stored : "Medium"
         spiralEnabled = defaults?.object(forKey: "spiralPauseEnabled") == nil
             ? true : (defaults?.bool(forKey: "spiralPauseEnabled") ?? true)
-        showExpl = defaults?.object(forKey: "showExplanation") == nil
-            ? true : (defaults?.bool(forKey: "showExplanation") ?? true)
+        showExpl = defaults?.object(forKey: "showExplanation.v2") == nil
+            ? true : (defaults?.bool(forKey: "showExplanation.v2") ?? true)
     }
 
     // MARK: - Rewrite
@@ -664,11 +670,15 @@ struct KeyboardView: View {
 
     private func buildProfileInstructions() -> String {
         var parts: [String] = []
-        if profileADHD {
-            parts.append("ADHD: move main point first, use short clear sentences, avoid buried asks, make urgency explicit, cut tangents.")
-        }
-        if profileAutism {
-            parts.append("Autism: make meaning fully literal, remove social subtext and implied expectations, define vague phrases, state the ask directly.")
+        if profileAUDHD || (profileADHD && profileAutism) {
+            parts.append("AUDHD: combine ADHD and Autism communication traits \u{2014} put the main point first, use ultra-literal language, eliminate all implied expectations and social subtext, define every vague phrase, make urgency explicit, keep sentences short with a concrete next step.")
+        } else {
+            if profileADHD {
+                parts.append("ADHD: move main point first, use short clear sentences, avoid buried asks, make urgency explicit, cut tangents.")
+            }
+            if profileAutism {
+                parts.append("Autism: make meaning fully literal, remove social subtext and implied expectations, define vague phrases, state the ask directly.")
+            }
         }
         if profilePTSD {
             parts.append("PTSD: lower all threat signals, add reassurance where appropriate, avoid vague warnings or power-heavy phrasing, keep tone calm.")
