@@ -120,6 +120,16 @@ struct ContentView: View {
 
     private let appGroupID              = "group.com.alden.tonelayer"
     private let selectedProfileKey      = "selectedProfile"
+    private let rewriteLevelKey         = "rewriteLevel"
+    private let apiKeyKey               = "claudeAPIKey"
+    private let spiralPauseEnabledKey   = "spiralPauseEnabled"
+    private let spiralSensitivityKey    = "spiralSensitivity"
+    private let showExplanationKey      = "showExplanation.v2"
+    private let outcomesOptInKey        = "outcomesOptIn"
+
+    private var sharedDefaults: UserDefaults {
+        UserDefaults(suiteName: appGroupID) ?? .standard
+    }
 
     private var activeProfileLabel: String {
         var p: [String] = []
@@ -171,16 +181,6 @@ struct ContentView: View {
         sharedDefaults.set(profileCPTSD,         forKey: "ndprofile.cptsd")
         sharedDefaults.synchronize()
     }
-    private let rewriteLevelKey         = "rewriteLevel"
-    private let apiKeyKey               = "claudeAPIKey"
-    private let spiralPauseEnabledKey   = "spiralPauseEnabled"
-    private let spiralSensitivityKey    = "spiralSensitivity"
-    private let showExplanationKey      = "showExplanation"
-    private let outcomesOptInKey        = "outcomesOptIn"
-
-    private var sharedDefaults: UserDefaults {
-        UserDefaults(suiteName: appGroupID) ?? .standard
-    }
 
     var body: some View {
         ScrollView {
@@ -205,8 +205,6 @@ struct ContentView: View {
             ActivityView(activityItems: activityItems)
         }
     }
-
-    // MARK: - Header
 
     private var headerCard: some View {
         VStack(spacing: 12) {
@@ -255,7 +253,6 @@ struct ContentView: View {
         return dailyTips[(day - 1) % dailyTips.count]
     }
 
-    // Teaching card \u{2014} sits below the composer output, always visible unless toggled off in Options
     private var teachingCard: some View {
         Group {
             if showExplanation {
@@ -292,8 +289,6 @@ struct ContentView: View {
             }
         }
     }
-
-    // MARK: - Composer
 
     private var composerCard: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -477,8 +472,6 @@ struct ContentView: View {
         .buttonStyle(.bordered)
     }
 
-    // MARK: - API Key
-
     private var apiKeyCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             Label("Claude API Key", systemImage: "key.fill")
@@ -493,13 +486,10 @@ struct ContentView: View {
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
 
-            Button {
-                saveAPIKey()
-            } label: {
+            Button { saveAPIKey() } label: {
                 HStack {
                     Image(systemName: apiKeySaved ? "checkmark.circle.fill" : "square.and.arrow.down")
-                    Text(apiKeySaved ? "Saved!" : "Save Key")
-                        .fontWeight(.semibold)
+                    Text(apiKeySaved ? "Saved!" : "Save Key").fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
@@ -524,23 +514,17 @@ struct ContentView: View {
 
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Use my data to personalize support")
-                        .font(.subheadline.weight(.semibold))
+                    Text("Use my data to personalize support").font(.subheadline.weight(.semibold))
                     Text("When this is off, ToneLayer should only use local settings needed for the current rewrite. This is not emergency monitoring.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Toggle("", isOn: $outcomesOptIn)
-                    .labelsHidden()
-                    .onChange(of: outcomesOptIn) { _, newValue in
-                        sharedDefaults.set(newValue, forKey: outcomesOptInKey)
-                    }
+                Toggle("", isOn: $outcomesOptIn).labelsHidden()
+                    .onChange(of: outcomesOptIn) { _, v in sharedDefaults.set(v, forKey: outcomesOptInKey) }
             }
 
             Text("Future payer or clinical reports should require this opt-in and should show function-level outcomes, not private draft text.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
@@ -550,38 +534,31 @@ struct ContentView: View {
     private var outcomesSummaryCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label("Local Outcomes", systemImage: "chart.bar.xaxis")
-                    .font(.title3.weight(.semibold))
+                Label("Local Outcomes", systemImage: "chart.bar.xaxis").font(.title3.weight(.semibold))
                 Spacer()
-                Text(outcomesOptIn ? "On" : "Off")
-                    .font(.caption.weight(.semibold))
+                Text(outcomesOptIn ? "On" : "Off").font(.caption.weight(.semibold))
                     .foregroundStyle(outcomesOptIn ? .green : .secondary)
             }
-
             if !outcomesOptIn {
-                Text("Turn on Personalization & Outcomes to collect local event summaries. Draft text is not stored in these summaries.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                Text("Turn on Personalization & Outcomes to collect local event summaries.")
+                    .font(.subheadline).foregroundStyle(.secondary)
             } else if outcomeEvents.isEmpty {
-                Text("No local outcome events yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                Text("No local outcome events yet.").font(.subheadline).foregroundStyle(.secondary)
             } else {
                 let rewrites = outcomeEvents.filter { $0.event == "rewrite_completed" }.count
-                let exports = outcomeEvents.filter { $0.event.hasPrefix("export_") || $0.event == "copy_result" }.count
+                let exports  = outcomeEvents.filter { $0.event.hasPrefix("export_") || $0.event == "copy_result" }.count
                 let feedback = outcomeEvents.filter { $0.event == "feedback_submitted" }.count
-                let latest = outcomeEvents.suffix(30)
-                let averageInput = latest.isEmpty ? 0 : latest.map(\.inputLength).reduce(0, +) / latest.count
-                let correctionScores = outcomeEvents.compactMap { $0.correctionMetrics?.changeScore }
-                let averageCorrection = correctionScores.isEmpty ? 0 : correctionScores.reduce(0, +) / correctionScores.count
-
+                let latest   = outcomeEvents.suffix(30)
+                let avgInput = latest.isEmpty ? 0 : latest.map(\.inputLength).reduce(0,+) / latest.count
+                let scores   = outcomeEvents.compactMap { $0.correctionMetrics?.changeScore }
+                let avgCorr  = scores.isEmpty ? 0 : scores.reduce(0,+) / scores.count
                 VStack(spacing: 8) {
                     outcomeRow("Tracked events", "\(outcomeEvents.count)")
                     outcomeRow("Rewrites", "\(rewrites)")
                     outcomeRow("Exports / copies", "\(exports)")
                     outcomeRow("Feedback submitted", "\(feedback)")
-                    outcomeRow("Avg input length", "\(averageInput) chars")
-                    outcomeRow("Avg correction", "\(averageCorrection)%")
+                    outcomeRow("Avg input length", "\(avgInput) chars")
+                    outcomeRow("Avg correction", "\(avgCorr)%")
                 }
             }
         }
@@ -599,16 +576,12 @@ struct ContentView: View {
         .font(.subheadline)
     }
 
-    // MARK: - Profile Picker
-
     private var profileCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("ND Profile", systemImage: "person.crop.circle")
-                .font(.title3.weight(.semibold))
+            Label("ND Profile", systemImage: "person.crop.circle").font(.title3.weight(.semibold))
 
             Text("Check all that apply. AUDHD = ADHD + Autism combined. Combinations build the AI instructions automatically.")
-                .foregroundStyle(.secondary)
-                .font(.subheadline)
+                .foregroundStyle(.secondary).font(.subheadline)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 profileCheckbox("ADHD",   isOn: $profileADHD)
@@ -638,24 +611,17 @@ struct ContentView: View {
                 Image(systemName: isOn.wrappedValue ? "checkmark.square.fill" : "square")
                     .foregroundStyle(isOn.wrappedValue ? Color.brandVioletDark : Color.secondary)
                     .font(.body)
-                Text(label)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.primary)
+                Text(label).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
                 Spacer()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 12).padding(.vertical, 10)
             .background(isOn.wrappedValue ? Color.brandVioletMist : Color(.tertiarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(isOn.wrappedValue ? Color.brandVioletDark.opacity(0.4) : Color.clear, lineWidth: 1)
-            )
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(isOn.wrappedValue ? Color.brandVioletDark.opacity(0.4) : Color.clear, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
-
-    // MARK: - Level Picker
 
     private let levelDescriptions: [String: String] = [
         "Light":  "Small ND-to-NT adjustments: fixes clarity, grammar, and tone while keeping your wording close.",
@@ -665,202 +631,126 @@ struct ContentView: View {
 
     private var levelCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label("NT Level", systemImage: "sparkles")
-                .font(.title3.weight(.semibold))
-
-            Text("Choose how strongly ToneLayer should translate ND speech into NT speech. Start at Medium and compare all three levels to learn the patterns.")
-                .foregroundStyle(.secondary)
-                .font(.subheadline)
-
+            Label("NT Level", systemImage: "sparkles").font(.title3.weight(.semibold))
+            Text("Choose how strongly ToneLayer should translate ND speech into NT speech.")
+                .foregroundStyle(.secondary).font(.subheadline)
             VStack(spacing: 10) {
                 ForEach(["Light", "Medium", "Strong"], id: \.self) { l in
-                    Button {
-                        saveLevel(l)
-                    } label: {
+                    Button { saveLevel(l) } label: {
                         HStack(alignment: .top) {
                             VStack(alignment: .leading, spacing: 3) {
-                                Text(l)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(rewriteLevel == l ? Color(red: 0.12, green: 0.15, blue: 0.18) : Color.primary)
+                                Text(l).fontWeight(.semibold)
+                                    .foregroundStyle(rewriteLevel == l ? Color(red:0.12,green:0.15,blue:0.18) : Color.primary)
                                 if let desc = levelDescriptions[l] {
-                                    Text(desc)
-                                        .font(.caption)
-                                        .foregroundStyle(rewriteLevel == l ? Color(red: 0.30, green: 0.34, blue: 0.38) : Color.secondary)
+                                    Text(desc).font(.caption)
+                                        .foregroundStyle(rewriteLevel == l ? Color(red:0.30,green:0.34,blue:0.38) : Color.secondary)
                                         .multilineTextAlignment(.leading)
                                 }
                             }
                             Spacer()
                             if rewriteLevel == l {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(Color.brandVioletDark)
+                                Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.brandVioletDark)
                             }
                         }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            rewriteLevel == l
-                                ? Color.brandVioletMist
-                                : Color(.tertiarySystemBackground)
-                        )
+                        .padding().frame(maxWidth: .infinity, alignment: .leading)
+                        .background(rewriteLevel == l ? Color.brandVioletMist : Color(.tertiarySystemBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .glassCard(tint: .brandGreen)
+        .frame(maxWidth: .infinity, alignment: .leading).padding(20).glassCard(tint: .brandGreen)
     }
-
-    // MARK: - Spiral Pause
 
     private var spiralPauseCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label("Spiral Pause", systemImage: "heart.circle")
-                    .font(.title3.weight(.semibold))
+                Label("Spiral Pause", systemImage: "heart.circle").font(.title3.weight(.semibold))
                 Spacer()
-                Toggle("", isOn: $spiralPauseEnabled)
-                    .labelsHidden()
-                    .onChange(of: spiralPauseEnabled) { _, newValue in
-                        sharedDefaults.set(newValue, forKey: spiralPauseEnabledKey)
-                    }
+                Toggle("", isOn: $spiralPauseEnabled).labelsHidden()
+                    .onChange(of: spiralPauseEnabled) { _, v in sharedDefaults.set(v, forKey: spiralPauseEnabledKey) }
             }
-
-            Text("Before rewriting, ToneLayer checks if your text shows cognitive distortions (catastrophizing, all-or-nothing, mind-reading, etc.). If it does, it pauses and offers a calmer draft. You can always override and send your original.")
-                .foregroundStyle(.secondary)
-                .font(.subheadline)
-
+            Text("Before rewriting, ToneLayer checks if your text shows cognitive distortions. If it does, it pauses and offers a calmer draft.")
+                .foregroundStyle(.secondary).font(.subheadline)
             if spiralPauseEnabled {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Sensitivity")
-                        .font(.subheadline.weight(.medium))
+                    Text("Sensitivity").font(.subheadline.weight(.medium))
                     Picker("Sensitivity", selection: $spiralSensitivity) {
                         ForEach(sensitivities, id: \.self) { Text($0).tag($0) }
                     }
                     .pickerStyle(.segmented)
-                    .onChange(of: spiralSensitivity) { _, newValue in
-                        sharedDefaults.set(newValue, forKey: spiralSensitivityKey)
-                    }
-                    Text(sensitivityDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    .onChange(of: spiralSensitivity) { _, v in sharedDefaults.set(v, forKey: spiralSensitivityKey) }
+                    Text(sensitivityDescription).font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .glassCard(tint: .brandGreen)
+        .frame(maxWidth: .infinity, alignment: .leading).padding(20).glassCard(tint: .brandGreen)
     }
-
-    // MARK: - Explanation Toggle
 
     private var explanationToggleCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label("Teaching Window", systemImage: "lightbulb")
-                    .font(.title3.weight(.semibold))
+                Label("Teaching Window", systemImage: "lightbulb").font(.title3.weight(.semibold))
                 Spacer()
-                Toggle("", isOn: $showExplanation)
-                    .labelsHidden()
-                    .onChange(of: showExplanation) { _, newValue in
-                        sharedDefaults.set(newValue, forKey: showExplanationKey)
-                    }
+                Toggle("", isOn: $showExplanation).labelsHidden()
+                    .onChange(of: showExplanation) { _, v in sharedDefaults.set(v, forKey: showExplanationKey) }
             }
-
-            Text("Show the teaching card below the rewrite result. Turn this off only when you want rewrites without explanations.")
-                .foregroundStyle(.secondary)
-                .font(.subheadline)
+            Text("Shows teaching explanation below every rewrite. This is on by default — turn it off here if you only want the rewrite output.")
+                .foregroundStyle(.secondary).font(.subheadline)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .glassCard(tint: .brandVioletDark)
+        .frame(maxWidth: .infinity, alignment: .leading).padding(20).glassCard(tint: .brandVioletDark)
     }
 
     private var sensitivityDescription: String {
         switch spiralSensitivity {
-        case "Low":  return "Only pauses on strong signals (clear panic, multiple heavy distortions)."
+        case "Low":  return "Only pauses on strong signals."
         case "High": return "Pauses on any clear distortion. May feel intrusive."
         default:     return "Pauses when two or more distortions are present. Recommended."
         }
     }
 
-    // MARK: - Test Area
-
     private var testCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label("Keyboard Test", systemImage: "keyboard")
-                    .font(.title3.weight(.semibold))
+                Label("Keyboard Test", systemImage: "keyboard").font(.title3.weight(.semibold))
                 Spacer()
-                if !testText.isEmpty {
-                    Button("Clear") { testText = "" }
-                        .font(.subheadline)
-                }
+                if !testText.isEmpty { Button("Clear") { testText = "" }.font(.subheadline) }
             }
-
             ZStack(alignment: .topLeading) {
                 UIKitTextView(text: $testText)
-                    .frame(minHeight: 180, maxHeight: 320)
-                    .padding(8)
+                    .frame(minHeight: 180, maxHeight: 320).padding(8)
                     .background(Color(.tertiarySystemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color(.separator), lineWidth: 0.5)
-                    )
-
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color(.separator), lineWidth: 0.5))
                 if testText.isEmpty {
                     Text("Type or paste your text here\u{2026}")
-                        .foregroundStyle(.tertiary)
-                        .font(.body)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 16)
-                        .allowsHitTesting(false)
+                        .foregroundStyle(.tertiary).font(.body)
+                        .padding(.horizontal, 14).padding(.vertical, 16).allowsHitTesting(false)
                 }
             }
-
-            HStack {
-                Spacer()
-                Text("\(testText.count) characters")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            HStack { Spacer(); Text("\(testText.count) characters").font(.caption).foregroundStyle(.secondary) }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .glassCard(tint: .brandVioletDark)
+        .frame(maxWidth: .infinity, alignment: .leading).padding(20).glassCard(tint: .brandVioletDark)
     }
-
-    // MARK: - Status Card
 
     private var statusCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Status", systemImage: "checkmark.seal")
-                .font(.title3.weight(.semibold))
-
-            statusRow(title: "Host app",              value: "\u{2713} Running")
-            statusRow(title: "Keyboard extension",    value: "\u{2713} Installed")
-            statusRow(title: "API key",               value: apiKey.isEmpty ? "Not set" : "\u{2713} Set")
-            statusRow(title: "Active profile",        value: activeProfileLabel)
-            statusRow(title: "NT level",               value: rewriteLevel)
-            statusRow(title: "App group sharing",     value: "\u{2713} Enabled")
+            Label("Status", systemImage: "checkmark.seal").font(.title3.weight(.semibold))
+            statusRow(title: "Host app",           value: "\u{2713} Running")
+            statusRow(title: "Keyboard extension", value: "\u{2713} Installed")
+            statusRow(title: "API key",            value: apiKey.isEmpty ? "Not set" : "\u{2713} Set")
+            statusRow(title: "Active profile",     value: activeProfileLabel)
+            statusRow(title: "NT level",            value: rewriteLevel)
+            statusRow(title: "App group sharing",  value: "\u{2713} Enabled")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .glassCard(tint: .brandGreen)
+        .frame(maxWidth: .infinity, alignment: .leading).padding(20).glassCard(tint: .brandGreen)
     }
 
     private func statusRow(title: String, value: String) -> some View {
-        HStack {
-            Text(title).foregroundStyle(.secondary)
-            Spacer()
-            Text(value).fontWeight(.semibold)
-        }
+        HStack { Text(title).foregroundStyle(.secondary); Spacer(); Text(value).fontWeight(.semibold) }
     }
-
-    // MARK: - Persistence
 
     private func loadSettings() {
         profileADHD   = UserDefaults.standard.bool(forKey: "ndprofile.adhd")
@@ -873,25 +763,22 @@ struct ContentView: View {
 
         let storedLevel = sharedDefaults.string(forKey: rewriteLevelKey) ?? "Medium"
         rewriteLevel = ["Light", "Medium", "Strong"].contains(storedLevel) ? storedLevel : "Medium"
-
         apiKey = sharedDefaults.string(forKey: apiKeyKey) ?? ""
 
+        spiralPauseEnabled = sharedDefaults.object(forKey: spiralPauseEnabledKey) == nil
+            ? true : sharedDefaults.bool(forKey: spiralPauseEnabledKey)
         if sharedDefaults.object(forKey: spiralPauseEnabledKey) == nil {
-            spiralPauseEnabled = true
             sharedDefaults.set(true, forKey: spiralPauseEnabledKey)
-        } else {
-            spiralPauseEnabled = sharedDefaults.bool(forKey: spiralPauseEnabledKey)
         }
         let storedSens = sharedDefaults.string(forKey: spiralSensitivityKey) ?? "Medium"
         spiralSensitivity = sensitivities.contains(storedSens) ? storedSens : "Medium"
-        if spiralSensitivity == "Light" { spiralSensitivity = "Low" }
-        if spiralSensitivity == "Strong" { spiralSensitivity = "High" }
 
         showExplanation = true
         if sharedDefaults.object(forKey: showExplanationKey) != nil {
             showExplanation = sharedDefaults.bool(forKey: showExplanationKey)
+        } else {
+            sharedDefaults.set(true, forKey: showExplanationKey)
         }
-        sharedDefaults.set(showExplanation, forKey: showExplanationKey)
 
         outcomesOptIn = sharedDefaults.bool(forKey: outcomesOptInKey)
     }
@@ -904,12 +791,8 @@ struct ContentView: View {
     private func saveAPIKey() {
         sharedDefaults.set(apiKey, forKey: apiKeyKey)
         apiKeySaved = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            apiKeySaved = false
-        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { apiKeySaved = false }
     }
-
-    // MARK: - Composer Actions
 
     private var hasComposerOutput: Bool {
         !composerOriginal.isEmpty || !composerGrammar.isEmpty || !composerNT.isEmpty
@@ -917,10 +800,10 @@ struct ContentView: View {
 
     private var selectedComposerText: String {
         switch selectedOutput {
-        case "Original": return composerOriginal
+        case "Original":     return composerOriginal
         case "Grammar only": return composerGrammar.isEmpty ? composerOriginal : composerGrammar
         default:
-            if !composerNT.isEmpty { return composerNT }
+            if !composerNT.isEmpty    { return composerNT }
             if !composerGrammar.isEmpty { return composerGrammar }
             return composerOriginal
         }
@@ -933,8 +816,7 @@ struct ContentView: View {
 
     private func pasteFromClipboard() {
         guard let pasted = UIPasteboard.general.string, !pasted.isEmpty else {
-            composerStatus = "Clipboard is empty"
-            return
+            composerStatus = "Clipboard is empty"; return
         }
         testText = pasted
         composerStatus = "Pasted \(pasted.count) characters"
@@ -966,10 +848,8 @@ struct ContentView: View {
         let input = testText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !input.isEmpty else { return }
         guard !apiKey.isEmpty else {
-            composerStatus = "Add your Claude API key in Settings first"
-            return
+            composerStatus = "Add your Claude API key in Options first"; return
         }
-
         isComposerRewriting = true
         composerStatus = "Rewriting \(input.count) characters..."
         composerOriginal = input
@@ -983,31 +863,18 @@ struct ContentView: View {
             do {
                 let result = try await callClaudeForComposer(text: input)
                 await MainActor.run {
-                    composerGrammar = result.grammarOnly.isEmpty ? input : result.grammarOnly
-                    composerNT = result.rewrite
+                    composerGrammar    = result.grammarOnly.isEmpty ? input : result.grammarOnly
+                    composerNT         = result.rewrite
                     composerExplanation = result.explanation
                     isComposerRewriting = false
-                    composerStatus = "Ready"
-                    saveLog(
-                        original: input,
-                        rewritten: result.rewrite,
-                        explanation: result.explanation,
-                        distortions: result.distortions
-                    )
-                    trackOutcome(
-                        event: "rewrite_completed",
-                        inputLength: input.count,
-                        outputLength: result.rewrite.count,
-                        distortions: result.distortions,
-                        correctionMetrics: CorrectionMetrics(original: input, rewritten: result.rewrite)
-                    )
+                    composerStatus     = "Ready"
+                    saveLog(original: input, rewritten: result.rewrite, explanation: result.explanation, distortions: result.distortions)
+                    trackOutcome(event: "rewrite_completed", inputLength: input.count, outputLength: result.rewrite.count,
+                                 distortions: result.distortions, correctionMetrics: CorrectionMetrics(original: input, rewritten: result.rewrite))
                     loadLog()
                 }
             } catch {
-                await MainActor.run {
-                    isComposerRewriting = false
-                    composerStatus = error.localizedDescription
-                }
+                await MainActor.run { isComposerRewriting = false; composerStatus = error.localizedDescription }
             }
         }
     }
@@ -1032,18 +899,15 @@ struct ContentView: View {
             "system": buildComposerSystem(),
             "messages": [["role": "user", "content": "Text:\n\(text)\n\nReply with ONLY valid JSON."]],
         ])
-
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw ComposerError.apiFailed(0) }
         if http.statusCode != 200 {
             if let errJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let err = errJSON["error"] as? [String: Any],
-               let msg = err["message"] as? String {
+               let err = errJSON["error"] as? [String: Any], let msg = err["message"] as? String {
                 throw ComposerError.apiMessage("\(http.statusCode): \(msg.prefix(120))")
             }
             throw ComposerError.apiFailed(http.statusCode)
         }
-
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let content = (json["content"] as? [[String: Any]])?.first?["text"] as? String
         else { throw ComposerError.badResponse }
@@ -1051,9 +915,7 @@ struct ContentView: View {
         let cleaned = extractComposerJSON(from: content)
         guard let parsedData = cleaned.data(using: .utf8),
               let parsed = try? JSONSerialization.jsonObject(with: parsedData) as? [String: Any]
-        else {
-            return ComposerResult(rewrite: cleaned.trimmingCharacters(in: .whitespacesAndNewlines), grammarOnly: "", explanation: "", distortions: [])
-        }
+        else { return ComposerResult(rewrite: cleaned.trimmingCharacters(in: .whitespacesAndNewlines), grammarOnly: "", explanation: "", distortions: []) }
 
         let rewrite: String
         if let paras = parsed["paragraphs"] as? [String], !paras.isEmpty {
@@ -1061,7 +923,6 @@ struct ContentView: View {
         } else {
             rewrite = parsed["rewrite"] as? String ?? ""
         }
-
         guard !rewrite.isEmpty else { throw ComposerError.badResponse }
         return ComposerResult(
             rewrite: rewrite,
@@ -1075,22 +936,20 @@ struct ContentView: View {
         """
         You are ToneLayer, a communication assistant that translates neurodivergent brain dumps into neurotypical-readable communication. Active profile: \(activeProfileLabel).
 
-        Rewrite the entire text from ND speech into NT-readable speech at the \(rewriteLevel) level. Preserve the user's intended message, requests, constraints, and necessary context from the whole original. Follow the selected rewrite level exactly.
+        Rewrite the entire text from ND speech into NT-readable speech at the \(rewriteLevel) level. Preserve the user's intended message, requests, constraints, and necessary context. Follow the selected rewrite level exactly.
 
         Profile instructions: \(buildProfileInstructions())
 
         Light: small ND-to-NT adjustments; fix clarity, grammar, and tone while keeping wording close.
         Medium: balanced ND-to-NT rewrite; structure the message for NT readers while still sounding like the user.
-        Strong: full ND-to-NT translation; concise, direct, emotionally neutral, low-friction for the reader, main point first, support need named when possible. Remove spirals, repeated urgency, metaphors, side quests, and internal processing unless they are strictly necessary.
-
-        The \"paragraphs\" rewrite is the primary output. Do not shorten or flatten it to make room for grammar_only.
+        Strong: full ND-to-NT translation; concise, direct, emotionally neutral, main point first. Remove spirals, repeated urgency, metaphors, and side quests.
 
         Always respond with ONLY valid JSON:
         {
           \"paragraphs\": [\"rewritten paragraph one\", \"rewritten paragraph two\"],
           \"explanation\": \"one sentence explaining what changed and why it is more NT-readable\",
           \"distortions\": [\"any cognitive distortions found, empty array if none\"],
-          \"grammar_only\": \"grammar-fixed version of the full original that keeps the user's ND structure and meaning\"
+          \"grammar_only\": \"grammar-fixed version keeping the user's ND structure and meaning\"
         }
         """
     }
@@ -1098,22 +957,17 @@ struct ContentView: View {
     private func extractComposerJSON(from raw: String) -> String {
         var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if s.hasPrefix("```") {
-            if let firstNL = s.firstIndex(of: "\n") { s = String(s[s.index(after: firstNL)...]) }
+            if let nl = s.firstIndex(of: "\n") { s = String(s[s.index(after: nl)...]) }
             if s.hasSuffix("```") { s = String(s.dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines) }
         }
-        if let openIdx = s.firstIndex(of: "{"), let closeIdx = s.lastIndex(of: "}"), openIdx < closeIdx {
-            return String(s[openIdx...closeIdx])
-        }
+        if let o = s.firstIndex(of: "{"), let c = s.lastIndex(of: "}"), o < c { return String(s[o...c]) }
         return s
     }
 
     private func saveLog(original: String, rewritten: String, explanation: String, distortions: [String]) {
-        let entry = RewriteEntry(
-            id: UUID(), timestamp: Date(),
-            profile: activeProfileLabel, mode: rewriteLevel,
-            originalText: original, rewrittenText: rewritten,
-            explanation: explanation, distortions: distortions, spiraling: !distortions.isEmpty
-        )
+        let entry = RewriteEntry(id: UUID(), timestamp: Date(), profile: activeProfileLabel, mode: rewriteLevel,
+                                 originalText: original, rewrittenText: rewritten,
+                                 explanation: explanation, distortions: distortions, spiraling: !distortions.isEmpty)
         DispatchQueue.global(qos: .background).async { LogStore.shared.append(entry) }
     }
 
@@ -1124,26 +978,14 @@ struct ContentView: View {
         }
     }
 
-    private func trackOutcome(
-        event: String,
-        inputLength: Int? = nil,
-        outputLength: Int? = nil,
-        distortions: [String] = [],
-        correctionMetrics: CorrectionMetrics? = nil,
-        feedbackLabel: String? = nil,
-        clarity: Int? = nil,
-        overwhelm: Int? = nil
-    ) {
+    private func trackOutcome(event: String, inputLength: Int? = nil, outputLength: Int? = nil,
+                              distortions: [String] = [], correctionMetrics: CorrectionMetrics? = nil,
+                              feedbackLabel: String? = nil, clarity: Int? = nil, overwhelm: Int? = nil) {
         guard outcomesOptIn else { return }
-        let ev = OutcomeEvent(
-            id: UUID(), timestamp: Date(), event: event,
-            inputLength: inputLength ?? 0,
-            outputLength: outputLength ?? 0,
-            distortions: distortions,
-            correctionMetrics: correctionMetrics,
-            feedbackLabel: feedbackLabel,
-            clarity: clarity, overwhelm: overwhelm
-        )
+        let ev = OutcomeEvent(id: UUID(), timestamp: Date(), event: event,
+                             inputLength: inputLength ?? 0, outputLength: outputLength ?? 0,
+                             distortions: distortions, correctionMetrics: correctionMetrics,
+                             feedbackLabel: feedbackLabel, clarity: clarity, overwhelm: overwhelm)
         DispatchQueue.global(qos: .background).async { OutcomeStore.shared.append(ev) }
     }
 
@@ -1152,59 +994,35 @@ struct ContentView: View {
         trackOutcome(event: "feedback_submitted", feedbackLabel: label, clarity: clarity, overwhelm: overwhelm)
     }
 
-    // MARK: - Log card
-
     private var logCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label("Rewrite Log", systemImage: "list.clipboard")
-                    .font(.title3.weight(.semibold))
+                Label("Rewrite Log", systemImage: "list.clipboard").font(.title3.weight(.semibold))
                 Spacer()
-                if !logEntries.isEmpty {
-                    Button("Export") { exportLog() }
-                        .font(.subheadline)
-                }
+                if !logEntries.isEmpty { Button("Export") { exportLog() }.font(.subheadline) }
             }
-
             if logEntries.isEmpty {
                 Text("No rewrites yet. Use the Composer to generate your first entry.")
-                    .foregroundStyle(.secondary)
-                    .font(.subheadline)
+                    .foregroundStyle(.secondary).font(.subheadline)
             } else {
-                ForEach(logEntries.suffix(5).reversed()) { entry in
-                    logRow(entry)
-                }
+                ForEach(logEntries.suffix(5).reversed()) { entry in logRow(entry) }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .glassCard(tint: .brandViolet)
+        .frame(maxWidth: .infinity, alignment: .leading).padding(20).glassCard(tint: .brandViolet)
     }
 
     private func logRow(_ entry: RewriteEntry) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(entry.profile)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.brandVioletDark)
-                Text("\u{2022}")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(entry.mode)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(entry.profile).font(.caption.weight(.semibold)).foregroundStyle(Color.brandVioletDark)
+                Text("\u{2022}").font(.caption).foregroundStyle(.secondary)
+                Text(entry.mode).font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Text(entry.timestamp, style: .time)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                Text(entry.timestamp, style: .time).font(.caption2).foregroundStyle(.secondary)
             }
-            Text(entry.originalText.prefix(80))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            Text(entry.originalText.prefix(80)).font(.caption).foregroundStyle(.secondary).lineLimit(2)
         }
-        .padding(10)
-        .background(Color(.tertiarySystemBackground))
+        .padding(10).background(Color(.tertiarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
@@ -1218,146 +1036,87 @@ struct ContentView: View {
     private func exportLog() {
         DispatchQueue.global(qos: .background).async {
             let entries = LogStore.shared.load()
-            let lines = entries.map { e in
-                "\(e.timestamp)\t\(e.profile)\t\(e.mode)\t\(e.originalText.replacingOccurrences(of: "\n", with: " "))\t\(e.rewrittenText.replacingOccurrences(of: "\n", with: " "))"
-            }
+            let lines = entries.map { "\($0.timestamp)\t\($0.profile)\t\($0.mode)\t\($0.originalText.replacingOccurrences(of: "\n", with: " "))\t\($0.rewrittenText.replacingOccurrences(of: "\n", with: " "))" }
             let csv = (["Timestamp\tProfile\tMode\tOriginal\tRewritten"] + lines).joined(separator: "\n")
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("tonelayer_log.tsv")
             try? csv.data(using: .utf8)?.write(to: url)
-            DispatchQueue.main.async {
-                activityItems = [url]
-                showingExportSheet = true
-            }
+            DispatchQueue.main.async { activityItems = [url]; showingExportSheet = true }
         }
     }
-
-    private var logCountLabel: String {
-        logEntries.isEmpty ? "No entries" : "\(logEntries.count) entries"
-    }
 }
-
-// MARK: - Outcome tracking models
 
 struct CorrectionMetrics: Codable {
     let changeScore: Int
     init(original: String, rewritten: String) {
-        let origWords = original.split { $0.isWhitespace }.count
-        let rewWords  = rewritten.split { $0.isWhitespace }.count
-        let delta = abs(origWords - rewWords)
-        changeScore = origWords == 0 ? 0 : min(100, delta * 100 / origWords)
+        let o = original.split { $0.isWhitespace }.count
+        let r = rewritten.split { $0.isWhitespace }.count
+        changeScore = o == 0 ? 0 : min(100, abs(o - r) * 100 / o)
     }
 }
 
 struct OutcomeEvent: Codable {
-    let id: UUID
-    let timestamp: Date
-    let event: String
-    let inputLength: Int
-    let outputLength: Int
-    let distortions: [String]
+    let id: UUID; let timestamp: Date; let event: String
+    let inputLength: Int; let outputLength: Int; let distortions: [String]
     let correctionMetrics: CorrectionMetrics?
-    let feedbackLabel: String?
-    let clarity: Int?
-    let overwhelm: Int?
+    let feedbackLabel: String?; let clarity: Int?; let overwhelm: Int?
 }
 
 final class OutcomeStore {
     static let shared = OutcomeStore()
     private let appGroupID = "group.com.alden.tonelayer"
     private let fileName   = "outcome_events.json"
-
     private var storeURL: URL? {
-        FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: appGroupID)?
-            .appendingPathComponent(fileName)
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)?.appendingPathComponent(fileName)
     }
-
     func load() -> [OutcomeEvent] {
-        guard let url = storeURL,
-              let data = try? Data(contentsOf: url),
-              let events = try? JSONDecoder().decode([OutcomeEvent].self, from: data)
-        else { return [] }
+        guard let url = storeURL, let data = try? Data(contentsOf: url),
+              let events = try? JSONDecoder().decode([OutcomeEvent].self, from: data) else { return [] }
         return events
     }
-
     func append(_ event: OutcomeEvent) {
-        var events = load()
-        events.append(event)
+        var events = load(); events.append(event)
         if events.count > 1000 { events = Array(events.suffix(1000)) }
         guard let url = storeURL, let data = try? JSONEncoder().encode(events) else { return }
         try? data.write(to: url, options: .atomic)
     }
 }
 
-// MARK: - Shared log model
-
 struct RewriteEntry: Codable, Identifiable {
-    let id: UUID
-    let timestamp: Date
-    let profile: String
-    let mode: String
-    let originalText: String
-    let rewrittenText: String
-    let explanation: String
-    let distortions: [String]
-    let spiraling: Bool
+    let id: UUID; let timestamp: Date; let profile: String; let mode: String
+    let originalText: String; let rewrittenText: String
+    let explanation: String; let distortions: [String]; let spiraling: Bool
 }
 
 final class LogStore {
     static let shared = LogStore()
     private let appGroupID = "group.com.alden.tonelayer"
     private let fileName   = "rewrite_log.json"
-
     private var logURL: URL? {
-        FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: appGroupID)?
-            .appendingPathComponent(fileName)
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)?.appendingPathComponent(fileName)
     }
-
     func load() -> [RewriteEntry] {
-        guard let url = logURL,
-              let data = try? Data(contentsOf: url),
-              let entries = try? JSONDecoder().decode([RewriteEntry].self, from: data)
-        else { return [] }
+        guard let url = logURL, let data = try? Data(contentsOf: url),
+              let entries = try? JSONDecoder().decode([RewriteEntry].self, from: data) else { return [] }
         return entries
     }
-
     func append(_ entry: RewriteEntry) {
-        var entries = load()
-        entries.append(entry)
+        var entries = load(); entries.append(entry)
         if entries.count > 500 { entries = Array(entries.suffix(500)) }
         guard let url = logURL, let data = try? JSONEncoder().encode(entries) else { return }
         try? data.write(to: url, options: .atomic)
     }
-
-    func topPatterns(limit: Int = 40) -> [(pattern: String, count: Int)] {
-        let recent = Array(load().suffix(limit))
-        let all = recent.flatMap { $0.distortions }.filter { !$0.isEmpty }
-        return Dictionary(grouping: all, by: { $0 })
-            .mapValues { $0.count }
-            .filter { $0.value >= 2 }
-            .sorted { $0.value > $1.value }
-            .prefix(3)
-            .map { (pattern: $0.key, count: $0.value) }
-    }
 }
 
-// MARK: - Errors
-
 enum ComposerError: LocalizedError {
-    case apiFailed(Int)
-    case apiMessage(String)
-    case badResponse
+    case apiFailed(Int); case apiMessage(String); case badResponse
     var errorDescription: String? {
         switch self {
-        case .apiFailed(let code):     return "API failed (HTTP \(code))"
-        case .apiMessage(let message): return message
-        case .badResponse:             return "Unexpected API response"
+        case .apiFailed(let c):  return "API failed (HTTP \(c))"
+        case .apiMessage(let m): return m
+        case .badResponse:       return "Unexpected API response"
         }
     }
 }
-
-// MARK: - UIKit Text View
 
 struct ActivityView: UIViewControllerRepresentable {
     let activityItems: [Any]
@@ -1369,7 +1128,6 @@ struct ActivityView: UIViewControllerRepresentable {
 
 struct UIKitTextView: UIViewRepresentable {
     @Binding var text: String
-
     func makeUIView(context: Context) -> UITextView {
         let tv = UITextView()
         tv.font = .preferredFont(forTextStyle: .body)
@@ -1383,13 +1141,8 @@ struct UIKitTextView: UIViewRepresentable {
         tv.text = text
         return tv
     }
-
-    func updateUIView(_ uiView: UITextView, context: Context) {
-        if uiView.text != text { uiView.text = text }
-    }
-
+    func updateUIView(_ uiView: UITextView, context: Context) { if uiView.text != text { uiView.text = text } }
     func makeCoordinator() -> Coordinator { Coordinator(self) }
-
     class Coordinator: NSObject, UITextViewDelegate {
         var parent: UIKitTextView
         init(_ parent: UIKitTextView) { self.parent = parent }
@@ -1397,6 +1150,4 @@ struct UIKitTextView: UIViewRepresentable {
     }
 }
 
-#Preview {
-    ContentView()
-}
+#Preview { ContentView() }
