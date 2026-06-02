@@ -176,6 +176,7 @@ struct ContentView: View {
             VStack(spacing: 20) {
                 headerCard
                 dailyTipCard
+                teachingCard
                 composerCard
                 settingsSection
                 logCard
@@ -241,6 +242,44 @@ struct ContentView: View {
     private var todayTip: (title: String, body: String) {
         let day = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 1
         return dailyTips[(day - 1) % dailyTips.count]
+    }
+
+    // Teaching card — always visible unless toggled off in Options
+    private var teachingCard: some View {
+        Group {
+            if showExplanation {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("How this lands", systemImage: "lightbulb.fill")
+                        .font(.headline)
+                        .foregroundStyle(Color.brandVioletDark)
+
+                    if hasComposerOutput && !composerExplanation.isEmpty {
+                        Text(composerExplanation)
+                            .font(.body)
+                            .foregroundStyle(Color.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                    } else if hasComposerOutput {
+                        Text("No teaching note returned for this rewrite.")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Rewrite a message to see how ToneLayer translates ND communication into NT-readable speech, and why each change helps.")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(Color.brandGreenMist.opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.brandVioletDark.opacity(0.20), lineWidth: 1)
+                )
+            }
+        }
     }
 
     // MARK: - Composer
@@ -357,21 +396,7 @@ struct ContentView: View {
                 }
             }
 
-            if hasComposerOutput {
-                ScrollView {
-                    Text(composerTeachingWindowText)
-                        .font(.body)
-                        .foregroundStyle(Color(red: 0.12, green: 0.15, blue: 0.18))
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .padding(14)
-                        .textSelection(.enabled)
-                }
-                .frame(minHeight: 100, maxHeight: 240)
-                .background(Color.brandGreenMist.opacity(0.8))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                feedbackCard
-            }
+            if hasComposerOutput { feedbackCard }
 
             Button { shareComposerResult() } label: {
                 Label("Share", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
@@ -732,7 +757,7 @@ struct ContentView: View {
                     }
             }
 
-            Text("Show a short note explaining what changed and why. Turn this off when you only want the rewrite.")
+            Text("Show the teaching card above the composer. Turn this off when you only want the rewrite.")
                 .foregroundStyle(.secondary)
                 .font(.subheadline)
         }
@@ -892,12 +917,6 @@ struct ContentView: View {
     private var composerResultWindowText: String {
         guard hasComposerOutput else { return "Rewrite result will appear here." }
         return selectedComposerText.isEmpty ? "Rewrite result will appear here." : selectedComposerText
-    }
-
-    private var composerTeachingWindowText: String {
-        guard showExplanation else { return "Teaching explanations are turned off in Options." }
-        guard hasComposerOutput else { return "After a rewrite, this will explain what changed and why the result is more NT-readable." }
-        return composerExplanation.isEmpty ? "No teaching explanation returned for this rewrite." : composerExplanation
     }
 
     private func pasteFromClipboard() {
