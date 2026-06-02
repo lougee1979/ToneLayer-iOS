@@ -9,9 +9,9 @@ import SwiftUI
 import UIKit
 
 extension Color {
-    static let brandVioletDark = Color(red: 0.369, green: 0.122, blue: 0.784)  // #5E1FC8 deep violet
-    static let brandViolet     = Color(red: 0.220, green: 0.502, blue: 0.973)  // #3880F8 bright blue
-    static let brandGreen      = Color(red: 0.608, green: 0.247, blue: 0.910)  // #9B3FE8 vivid violet
+    static let brandVioletDark = Color(red: 0.369, green: 0.122, blue: 0.784)
+    static let brandViolet     = Color(red: 0.220, green: 0.502, blue: 0.973)
+    static let brandGreen      = Color(red: 0.608, green: 0.247, blue: 0.910)
     static let brandWhite      = Color(red: 0.976, green: 0.969, blue: 1.000)
     static let brandGreenMist  = Color(red: 0.882, green: 0.914, blue: 0.996)
     static let brandVioletMist = Color(red: 0.929, green: 0.878, blue: 1.000)
@@ -187,8 +187,8 @@ struct ContentView: View {
             VStack(spacing: 20) {
                 headerCard
                 dailyTipCard
-                teachingCard
                 composerCard
+                teachingCard
                 settingsSection
                 logCard
             }
@@ -255,7 +255,7 @@ struct ContentView: View {
         return dailyTips[(day - 1) % dailyTips.count]
     }
 
-    // Teaching card \u{2014} always visible unless toggled off in Options
+    // Teaching card \u{2014} sits below the composer output, always visible unless toggled off in Options
     private var teachingCard: some View {
         Group {
             if showExplanation {
@@ -275,7 +275,7 @@ struct ContentView: View {
                             .font(.body)
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("Rewrite a message to see how ToneLayer translates ND communication into NT-readable speech, and why each change helps.")
+                        Text("Rewrite a message above to see how ToneLayer translates ND communication into NT-readable speech, and why each change helps.")
                             .font(.body)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -769,7 +769,7 @@ struct ContentView: View {
                     }
             }
 
-            Text("Show the teaching card above the composer. Turn this off when you only want the rewrite.")
+            Text("Show the teaching card below the rewrite result. Turn this off only when you want rewrites without explanations.")
                 .foregroundStyle(.secondary)
                 .font(.subheadline)
         }
@@ -887,12 +887,11 @@ struct ContentView: View {
         if spiralSensitivity == "Light" { spiralSensitivity = "Low" }
         if spiralSensitivity == "Strong" { spiralSensitivity = "High" }
 
-        if sharedDefaults.object(forKey: showExplanationKey) == nil {
-            showExplanation = true
-            sharedDefaults.set(true, forKey: showExplanationKey)
-        } else {
+        showExplanation = true
+        if sharedDefaults.object(forKey: showExplanationKey) != nil {
             showExplanation = sharedDefaults.bool(forKey: showExplanationKey)
         }
+        sharedDefaults.set(showExplanation, forKey: showExplanationKey)
 
         outcomesOptIn = sharedDefaults.bool(forKey: outcomesOptInKey)
     }
@@ -1031,7 +1030,7 @@ struct ContentView: View {
             "model": "claude-haiku-4-5-20251001",
             "max_tokens": 8192,
             "system": buildComposerSystem(),
-            "messages": [["role": "user", "content": "Text:\n\(input)\n\nReply with ONLY valid JSON."]],
+            "messages": [["role": "user", "content": "Text:\n\(text)\n\nReply with ONLY valid JSON."]],
         ])
 
         let (data, response) = try await URLSession.shared.data(for: req)
