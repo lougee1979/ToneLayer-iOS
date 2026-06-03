@@ -37,6 +37,7 @@ class KeyboardViewController: UIInputViewController {
 struct KeyboardView: View {
     let inputVC: UIInputViewController
 
+    private let serverURL  = "https://tonelayer-server.onrender.com/v1/messages"
     private let appGroupID = "group.com.alden.tonelayer"
     private var defaults: UserDefaults? { UserDefaults(suiteName: appGroupID) }
 
@@ -568,15 +569,11 @@ struct KeyboardView: View {
     }
 
     private func callClaude(text: String) async throws -> ClaudeResult {
-        guard let apiKey = defaults?.string(forKey: "claudeAPIKey"), !apiKey.isEmpty else {
-            throw NBError.noKey
-        }
         let system = buildSystem()
         let prompt = "Text:\n\(text)\n\nReply with ONLY valid JSON."
 
-        var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
+        var req = URLRequest(url: URL(string: serverURL)!)
         req.httpMethod = "POST"
-        req.setValue(apiKey,             forHTTPHeaderField: "x-api-key")
         req.setValue("2023-06-01",       forHTTPHeaderField: "anthropic-version")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 90
@@ -716,16 +713,14 @@ struct KeyboardView: View {
 // MARK: - Errors
 
 enum NBError: LocalizedError {
-    case noKey
     case apiFailed(Int)
     case apiMessage(String)
     case badResponse
     var errorDescription: String? {
         switch self {
-        case .noKey:               return "No API key \u{2014} add it in the ToneLayer app"
-        case .apiFailed(let code): return "API failed (HTTP \(code))"
+        case .apiFailed(let code): return "Server error (HTTP \(code))"
         case .apiMessage(let s):   return s
-        case .badResponse:         return "Unexpected API response"
+        case .badResponse:         return "Unexpected server response"
         }
     }
 }

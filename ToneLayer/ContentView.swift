@@ -64,9 +64,7 @@ struct ContentView: View {
     @State private var profilePTSD    = false
     @State private var profileCPTSD   = false
     @State private var rewriteLevel        = "Medium"
-    @State private var apiKey              = ""
     @State private var testText            = ""
-    @State private var apiKeySaved         = false
     @State private var spiralPauseEnabled  = true
     @State private var spiralSensitivity   = "Medium"
     @State private var showExplanation     = true
@@ -86,6 +84,8 @@ struct ContentView: View {
 
     private let sensitivities = ["Low", "Medium", "High"]
     private let outputTabs = ["Original", "Grammar only", "NT version"]
+
+    private let serverURL = "https://tonelayer-server.onrender.com/v1/messages"
 
     private let dailyTips: [(title: String, body: String)] = [
         (
@@ -121,7 +121,6 @@ struct ContentView: View {
     private let appGroupID              = "group.com.alden.tonelayer"
     private let selectedProfileKey      = "selectedProfile"
     private let rewriteLevelKey         = "rewriteLevel"
-    private let apiKeyKey               = "claudeAPIKey"
     private let spiralPauseEnabledKey   = "spiralPauseEnabled"
     private let spiralSensitivityKey    = "spiralSensitivity"
     private let showExplanationKey      = "showExplanation.v2"
@@ -419,7 +418,6 @@ struct ContentView: View {
     private var settingsSection: some View {
         DisclosureGroup {
             VStack(spacing: 20) {
-                apiKeyCard
                 privacyAndOutcomesCard
                 outcomesSummaryCard
                 profileCard
@@ -470,37 +468,6 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.bordered)
-    }
-
-    private var apiKeyCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label("Claude API Key", systemImage: "key.fill")
-                .font(.title3.weight(.semibold))
-
-            Text("Your key is stored securely in the app group so the keyboard can use it. Get yours at console.anthropic.com.")
-                .foregroundStyle(.secondary)
-                .font(.subheadline)
-
-            SecureField("sk-ant-\u{2026}", text: $apiKey)
-                .textFieldStyle(.roundedBorder)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-
-            Button { saveAPIKey() } label: {
-                HStack {
-                    Image(systemName: apiKeySaved ? "checkmark.circle.fill" : "square.and.arrow.down")
-                    Text(apiKeySaved ? "Saved!" : "Save Key").fontWeight(.semibold)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(apiKeySaved ? Color.brandGreen : Color.brandVioletDark)
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .glassCard(tint: .brandVioletDark)
     }
 
     private var privacyAndOutcomesCard: some View {
@@ -740,7 +707,7 @@ struct ContentView: View {
             Label("Status", systemImage: "checkmark.seal").font(.title3.weight(.semibold))
             statusRow(title: "Host app",           value: "\u{2713} Running")
             statusRow(title: "Keyboard extension", value: "\u{2713} Installed")
-            statusRow(title: "API key",            value: apiKey.isEmpty ? "Not set" : "\u{2713} Set")
+            statusRow(title: "Server",             value: "\u{2713} tonelayer-server.onrender.com")
             statusRow(title: "Active profile",     value: activeProfileLabel)
             statusRow(title: "NT level",            value: rewriteLevel)
             statusRow(title: "App group sharing",  value: "\u{2713} Enabled")
@@ -763,7 +730,6 @@ struct ContentView: View {
 
         let storedLevel = sharedDefaults.string(forKey: rewriteLevelKey) ?? "Medium"
         rewriteLevel = ["Light", "Medium", "Strong"].contains(storedLevel) ? storedLevel : "Medium"
-        apiKey = sharedDefaults.string(forKey: apiKeyKey) ?? ""
 
         spiralPauseEnabled = sharedDefaults.object(forKey: spiralPauseEnabledKey) == nil
             ? true : sharedDefaults.bool(forKey: spiralPauseEnabledKey)
@@ -786,12 +752,6 @@ struct ContentView: View {
     private func saveLevel(_ l: String) {
         rewriteLevel = l
         sharedDefaults.set(l, forKey: rewriteLevelKey)
-    }
-
-    private func saveAPIKey() {
-        sharedDefaults.set(apiKey, forKey: apiKeyKey)
-        apiKeySaved = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { apiKeySaved = false }
     }
 
     private var hasComposerOutput: Bool {
@@ -847,9 +807,6 @@ struct ContentView: View {
     private func rewriteComposer() {
         let input = testText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !input.isEmpty else { return }
-        guard !apiKey.isEmpty else {
-            composerStatus = "Add your Claude API key in Options first"; return
-        }
         isComposerRewriting = true
         composerStatus = "Rewriting \(input.count) characters..."
         composerOriginal = input
@@ -887,10 +844,9 @@ struct ContentView: View {
     }
 
     private func callClaudeForComposer(text: String) async throws -> ComposerResult {
-        var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
+        var req = URLRequest(url: URL(string: serverURL)!)
         req.httpMethod = "POST"
-        req.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        req.setValue("2023-06-01",       forHTTPHeaderField: "anthropic-version")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 90
         req.httpBody = try JSONSerialization.data(withJSONObject: [
