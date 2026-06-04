@@ -77,10 +77,13 @@ struct KeyboardView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        let agreed = defaults?.bool(forKey: "betaAgreementAccepted.v1") ?? false
+        return VStack(spacing: 0) {
             topBar
             Divider()
-            if showSpiral {
+            if !agreed {
+                agreementRequiredView
+            } else if showSpiral {
                 spiralCard.transition(.move(edge: .top).combined(with: .opacity))
             } else if !explanation.isEmpty && showExpl {
                 explanationCard.transition(.move(edge: .top).combined(with: .opacity))
@@ -91,6 +94,21 @@ struct KeyboardView: View {
         .background(Color(UIColor.systemGroupedBackground))
         .preferredColorScheme(.light)
         .onAppear { loadSettings() }
+    }
+
+    private var agreementRequiredView: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 22))
+                .foregroundStyle(Color(red: 0.369, green: 0.122, blue: 0.784))
+            Text("Open the ToneLayer app to accept the Beta Agreement before using the keyboard.")
+                .font(.system(size: 13))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 20)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
     }
 
     private var topBar: some View {

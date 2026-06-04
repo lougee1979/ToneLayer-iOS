@@ -1,11 +1,15 @@
 import SwiftUI
 
-private let agreementAcceptedKey = "betaAgreementAccepted.v1"
+let toneLayerAppGroupID = "group.com.alden.tonelayer"
+let agreementAcceptedKey = "betaAgreementAccepted.v1"
+
+func hasAcceptedAgreement() -> Bool {
+    UserDefaults(suiteName: toneLayerAppGroupID)?.bool(forKey: agreementAcceptedKey) ?? false
+}
 
 struct AgreementGate: View {
-    @State private var accepted   = false
-    @State private var showApp    = false
-    @State private var scrolledToBottom = false
+    @State private var accepted = false
+    @State private var showApp  = false
 
     var body: some View {
         if showApp {
@@ -41,18 +45,11 @@ struct AgreementGate: View {
                         .lineSpacing(5)
                         .padding(.horizontal, 24)
                         .padding(.bottom, 20)
-                        .background(
-                            GeometryReader { geo in
-                                Color.clear.preference(key: ScrollBottomKey.self, value: geo.frame(in: .named("scroll")).maxY)
-                            }
-                        )
                 }
-                .coordinateSpace(name: "scroll")
                 .frame(maxHeight: 380)
                 .background(Color.white.opacity(0.55))
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .padding(.horizontal, 20)
-                .onPreferenceChange(ScrollBottomKey.self) { _ in scrolledToBottom = true }
 
                 VStack(spacing: 16) {
                     Button {
@@ -63,7 +60,7 @@ struct AgreementGate: View {
                                 .font(.system(size: 22))
                                 .foregroundStyle(accepted ? Color(red: 0.369, green: 0.122, blue: 0.784) : .secondary)
                                 .frame(width: 28)
-                            Text("I have read and agree to the ToneLayer Beta Testing Agreement.")
+                            Text("I have read and agree to the ToneLayer Beta Testing Agreement, including use of the ToneLayer keyboard extension.")
                                 .font(.system(size: 13))
                                 .foregroundStyle(Color(red: 0.12, green: 0.10, blue: 0.22))
                                 .multilineTextAlignment(.leading)
@@ -75,7 +72,7 @@ struct AgreementGate: View {
 
                     Button {
                         guard accepted else { return }
-                        UserDefaults.standard.set(true, forKey: agreementAcceptedKey)
+                        UserDefaults(suiteName: toneLayerAppGroupID)?.set(true, forKey: agreementAcceptedKey)
                         withAnimation(.easeInOut(duration: 0.3)) { showApp = true }
                     } label: {
                         Text("Enter ToneLayer")
@@ -104,25 +101,25 @@ ToneLayer Beta Testing Agreement
 
 Last updated: June 2026
 
-Thank you for testing ToneLayer. By entering the app you agree to the following.
+Thank you for testing ToneLayer. This agreement covers the ToneLayer app and the ToneLayer keyboard extension. By accepting and entering the app you agree to the following.
 
-1. BETA SOFTWARE
-ToneLayer is beta software. Features may change, crash, or produce unexpected results. Do not rely on it for urgent or high-stakes communication.
+1. YOU OWN WHAT YOU PROCESS
+You confirm that you have the right to share and process any text you enter into ToneLayer or the ToneLayer keyboard. Do not paste or submit text that belongs to someone else or that you do not have explicit permission to use. ToneLayer is not responsible for any copyright or intellectual-property claims arising from text you submit.
 
-2. HOW YOUR DATA IS USED
-Text you enter is sent to the ToneLayer server for rewriting. Your text is processed in real time and is not stored permanently on the server. Optional outcomes data (whether a rewrite helped) is stored locally on your device only unless you choose to share it.
+2. BETA SOFTWARE — NO WARRANTIES
+ToneLayer is beta software. Features may change, crash, or produce unexpected results at any time without notice. Outputs are provided as-is and accuracy is not guaranteed. The developer is not liable for any direct or indirect loss, harm, or misunderstanding resulting from use during the beta period.
 
-3. NOT A MEDICAL DEVICE
-ToneLayer is a communication aid, not a medical device, therapy tool, or diagnostic service. It does not provide clinical advice. If you need mental health support, please speak with a qualified professional.
+3. NOT A SUBSTITUTE FOR PROFESSIONAL HELP
+ToneLayer is a communication aid. It is not a medical device, therapy tool, diagnostic service, or source of legal advice. It does not provide clinical, psychological, or legal guidance. If you need professional support, please speak with a qualified professional.
 
-4. FEEDBACK
+4. YOUR TEXT IS PROCESSED ON OUR SERVER
+Messages you type in the app or keyboard are sent to tonelayer.app for AI processing. Your text is not permanently stored on the server. Do not enter sensitive personal information such as passwords, financial data, or private medical details. By using ToneLayer you consent to this processing.
+
+5. FEEDBACK
 As a beta tester you agree to report bugs, usability issues, and unexpected behavior using the feedback option in the app. Your feedback directly improves the app.
 
-5. CONFIDENTIALITY
+6. CONFIDENTIALITY
 Please do not share screenshots or video of beta features publicly without permission from the developer.
-
-6. NO WARRANTY
-The app is provided as-is during beta. The developer is not liable for any direct or indirect harm resulting from use during the beta period.
 
 7. CHANGES TO THIS AGREEMENT
 This agreement may be updated before general release. You will be asked to re-read and accept any material changes.
@@ -131,13 +128,4 @@ If you have questions, contact the developer through the app or at the support e
 
 Thank you for helping make ToneLayer better.
 """
-}
-
-private struct ScrollBottomKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
-func shouldShowAgreement() -> Bool {
-    return !UserDefaults.standard.bool(forKey: agreementAcceptedKey)
 }
