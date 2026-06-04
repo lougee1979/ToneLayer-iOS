@@ -96,8 +96,8 @@ struct ContentView: View {
     private let sensitivities = ["Low", "Medium", "High"]
     private let outputTabs = ["Original", "Grammar only", "NT version"]
 
-    private let serverURL = "https://tonelayer.app/rewrite"
-    private let decodeURL = "https://tonelayer.app/decode"
+    private let serverURL = "https://tonelayer-server-production.up.railway.app/rewrite"
+    private let decodeURL = "https://tonelayer-server-production.up.railway.app/decode"
     private let appToken  = "d731136d97cdd46453e7581465537e0d9aee811512b885c2"
 
     private let dailyTips: [(title: String, body: String)] = [
@@ -925,7 +925,7 @@ struct ContentView: View {
             Label("Status", systemImage: "checkmark.seal").font(.title3.weight(.semibold))
             statusRow(title: "Host app",           value: "\u{2713} Running")
             statusRow(title: "Keyboard extension", value: "\u{2713} Installed")
-            statusRow(title: "Server",             value: "\u{2713} tonelayer.app")
+            statusRow(title: "Server",             value: "\u{2713} railway.app")
             statusRow(title: "Active profile",     value: activeProfileLabel)
             statusRow(title: "NT level",            value: rewriteLevel)
             statusRow(title: "App group sharing",  value: "\u{2713} Enabled")

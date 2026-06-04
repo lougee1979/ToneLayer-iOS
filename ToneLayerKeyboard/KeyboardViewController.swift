@@ -36,7 +36,7 @@ class KeyboardViewController: UIInputViewController {
 struct KeyboardView: View {
     let inputVC: UIInputViewController
 
-    private let serverURL  = "https://tonelayer.app/rewrite"
+    private let serverURL  = "https://tonelayer-server-production.up.railway.app/rewrite"
     private let appToken   = "d731136d97cdd46453e7581465537e0d9aee811512b885c2"
     private let appGroupID = "group.com.alden.tonelayer"
     private var defaults: UserDefaults? { UserDefaults(suiteName: appGroupID) }
@@ -560,7 +560,7 @@ struct KeyboardView: View {
     }
 
     private func callNarc(text: String) async throws -> String {
-        let narcURL = "https://tonelayer.app/narc"
+        let narcURL = "https://tonelayer-server-production.up.railway.app/narc"
         var req = URLRequest(url: URL(string: narcURL)!)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
