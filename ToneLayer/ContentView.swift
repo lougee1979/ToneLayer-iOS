@@ -206,7 +206,7 @@ struct ContentView: View {
             Text("ToneLayer")
                 .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(Color.brandGreen)
-            Text("Dump the messy version here. ToneLayer turns it into NT-readable communication.")
+            Text("Write it out your way. ToneLayer translates it into NT-readable communication.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 8)
@@ -555,7 +555,7 @@ struct ContentView: View {
                             .stroke(Color(.separator), lineWidth: 0.5)
                     )
                 if testText.isEmpty {
-                    Text("Type or paste the brain dump...")
+                    Text("Type or paste your message...")
                         .foregroundStyle(.tertiary)
                         .font(.body)
                         .padding(.horizontal, 14)
