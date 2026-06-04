@@ -85,7 +85,8 @@ struct ContentView: View {
     private let sensitivities = ["Low", "Medium", "High"]
     private let outputTabs = ["Original", "Grammar only", "NT version"]
 
-    private let serverURL = "https://tonelayer-server.onrender.com/v1/messages"
+    private let serverURL = "https://tonelayer.app/rewrite"
+    private let appToken  = "d731136d97cdd46453e7581465537e0d9aee811512b885c2"
 
     private let dailyTips: [(title: String, body: String)] = [
         (
@@ -143,29 +144,6 @@ struct ContentView: View {
         return p.isEmpty ? "General ND" : p.joined(separator: " + ")
     }
 
-    private func buildProfileInstructions() -> String {
-        var parts: [String] = []
-        if profileAUDHD || (profileADHD && profileAutism) {
-            parts.append("AUDHD: combine ADHD and Autism communication traits \u{2014} put the main point first, use ultra-literal language, eliminate all implied expectations and social subtext, define every vague phrase, make urgency explicit, keep sentences short with a concrete next step.")
-        } else {
-            if profileADHD {
-                parts.append("ADHD: move main point first, use short clear sentences, avoid buried asks, make urgency explicit, cut tangents.")
-            }
-            if profileAutism {
-                parts.append("Autism: make meaning fully literal, remove social subtext and implied expectations, define vague phrases, state the ask directly.")
-            }
-        }
-        if profilePTSD {
-            parts.append("PTSD: lower all threat signals, add reassurance where appropriate, avoid vague warnings or power-heavy phrasing, keep tone calm.")
-        }
-        if profileCPTSD {
-            parts.append("CPTSD: avoid language implying punishment or conditional approval, be warm and non-threatening, make intent explicit, address fawn and freeze response patterns.")
-        }
-        return parts.isEmpty
-            ? "General ND: remove ambiguity, make the ask explicit, add necessary context, state urgency, give a concrete next step."
-            : parts.joined(separator: " ")
-    }
-
     private func syncProfileSettings() {
         UserDefaults.standard.set(profileADHD,   forKey: "ndprofile.adhd")
         UserDefaults.standard.set(profileAutism, forKey: "ndprofile.autism")
@@ -212,11 +190,9 @@ struct ContentView: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 96, height: 96)
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-
             Text("ToneLayer")
                 .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(Color.brandGreen)
-
             Text("Dump the messy version here. ToneLayer turns it into NT-readable communication.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -232,11 +208,9 @@ struct ContentView: View {
             Label("FYI of the day", systemImage: "sparkle.magnifyingglass")
                 .font(.headline)
                 .foregroundStyle(Color.brandVioletDark)
-
             Text(todayTip.title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.primary)
-
             Text(todayTip.body)
                 .font(.subheadline)
                 .foregroundStyle(Color(red: 0.22, green: 0.26, blue: 0.30))
@@ -259,7 +233,6 @@ struct ContentView: View {
                     Label("How this lands", systemImage: "lightbulb.fill")
                         .font(.headline)
                         .foregroundStyle(Color.brandVioletDark)
-
                     if hasComposerOutput && !composerExplanation.isEmpty {
                         Text(composerExplanation)
                             .font(.body)
@@ -301,13 +274,11 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-
             Picker("Rewrite level", selection: $rewriteLevel) {
                 ForEach(["Light", "Medium", "Strong"], id: \.self) { Text($0).tag($0) }
             }
             .pickerStyle(.segmented)
             .onChange(of: rewriteLevel) { _, newValue in saveLevel(newValue) }
-
             ZStack(alignment: .topLeading) {
                 UIKitTextView(text: $testText)
                     .frame(minHeight: 220, maxHeight: 360)
@@ -318,7 +289,6 @@ struct ContentView: View {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .stroke(Color(.separator), lineWidth: 0.5)
                     )
-
                 if testText.isEmpty {
                     Text("Type or paste the brain dump...")
                         .foregroundStyle(.tertiary)
@@ -328,20 +298,17 @@ struct ContentView: View {
                         .allowsHitTesting(false)
                 }
             }
-
             HStack(spacing: 10) {
                 Button { pasteFromClipboard() } label: {
                     Label("Paste", systemImage: "doc.on.clipboard").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-
                 Button { testText = "" } label: {
                     Label("Clear", systemImage: "xmark.circle").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
                 .disabled(testText.isEmpty)
             }
-
             Button(action: rewriteComposer) {
                 HStack {
                     if isComposerRewriting {
@@ -362,18 +329,15 @@ struct ContentView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .disabled(isComposerRewriting || testText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
             if !composerStatus.isEmpty {
                 Text(composerStatus)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
             Picker("Output", selection: $selectedOutput) {
                 ForEach(outputTabs, id: \.self) { Text($0).tag($0) }
             }
             .pickerStyle(.segmented)
-
             ScrollView {
                 Text(composerResultWindowText)
                     .font(.body)
@@ -385,7 +349,6 @@ struct ContentView: View {
             .frame(minHeight: 180, maxHeight: 360)
             .background(Color.brandVioletMist.opacity(0.95))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
             if hasComposerOutput {
                 HStack(spacing: 10) {
                     Button { copyComposerResult() } label: {
@@ -393,16 +356,13 @@ struct ContentView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Color.brandVioletDark)
-
                     Button { replaceDraftWithResult() } label: {
                         Label("Replace Draft", systemImage: "arrow.uturn.down").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                 }
             }
-
             if hasComposerOutput { feedbackCard }
-
             Button { shareComposerResult() } label: {
                 Label("Share", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
             }
@@ -445,7 +405,6 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(feedbackSubmitted ? "Thanks. Feedback saved locally." : "Did this help?")
                 .font(.subheadline.weight(.semibold))
-
             if !feedbackSubmitted {
                 HStack(spacing: 8) {
                     feedbackButton("Not really", systemImage: "hand.thumbsdown", clarity: 2, overwhelm: 7)
@@ -474,22 +433,19 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 14) {
             Label("Personalization & Outcomes", systemImage: "chart.line.uptrend.xyaxis")
                 .font(.title3.weight(.semibold))
-
             Text("Optional consent for using ADHD evaluation data and ToneLayer activity patterns to personalize support and measure whether the tools are helping.")
                 .foregroundStyle(.secondary)
                 .font(.subheadline)
-
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Use my data to personalize support").font(.subheadline.weight(.semibold))
-                    Text("When this is off, ToneLayer should only use local settings needed for the current rewrite. This is not emergency monitoring.")
+                    Text("When this is off, ToneLayer should only use local settings needed for the current rewrite.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Toggle("", isOn: $outcomesOptIn).labelsHidden()
                     .onChange(of: outcomesOptIn) { _, v in sharedDefaults.set(v, forKey: outcomesOptInKey) }
             }
-
             Text("Future payer or clinical reports should require this opt-in and should show function-level outcomes, not private draft text.")
                 .font(.caption).foregroundStyle(.secondary)
         }
@@ -546,10 +502,8 @@ struct ContentView: View {
     private var profileCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("ND Profile", systemImage: "person.crop.circle").font(.title3.weight(.semibold))
-
-            Text("Check all that apply. AUDHD = ADHD + Autism combined. Combinations build the AI instructions automatically.")
+            Text("Check all that apply. AUDHD = ADHD + Autism combined.")
                 .foregroundStyle(.secondary).font(.subheadline)
-
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 profileCheckbox("ADHD",   isOn: $profileADHD)
                 profileCheckbox("Autism", isOn: $profileAutism)
@@ -557,7 +511,6 @@ struct ContentView: View {
                 profileCheckbox("PTSD",   isOn: $profilePTSD)
                 profileCheckbox("CPTSD",  isOn: $profileCPTSD)
             }
-
             if activeProfileLabel != "General ND" {
                 Label("Active: \(activeProfileLabel)", systemImage: "checkmark.circle.fill")
                     .font(.caption.weight(.semibold))
@@ -663,7 +616,7 @@ struct ContentView: View {
                 Toggle("", isOn: $showExplanation).labelsHidden()
                     .onChange(of: showExplanation) { _, v in sharedDefaults.set(v, forKey: showExplanationKey) }
             }
-            Text("Shows teaching explanation below every rewrite. This is on by default — turn it off here if you only want the rewrite output.")
+            Text("Shows teaching explanation below every rewrite. Turn it off here if you only want the rewrite output.")
                 .foregroundStyle(.secondary).font(.subheadline)
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(20).glassCard(tint: .brandVioletDark)
@@ -707,7 +660,7 @@ struct ContentView: View {
             Label("Status", systemImage: "checkmark.seal").font(.title3.weight(.semibold))
             statusRow(title: "Host app",           value: "\u{2713} Running")
             statusRow(title: "Keyboard extension", value: "\u{2713} Installed")
-            statusRow(title: "Server",             value: "\u{2713} tonelayer-server.onrender.com")
+            statusRow(title: "Server",             value: "\u{2713} tonelayer.app")
             statusRow(title: "Active profile",     value: activeProfileLabel)
             statusRow(title: "NT level",            value: rewriteLevel)
             statusRow(title: "App group sharing",  value: "\u{2713} Enabled")
@@ -727,10 +680,8 @@ struct ContentView: View {
         profilePTSD   = UserDefaults.standard.bool(forKey: "ndprofile.ptsd")
         profileCPTSD  = UserDefaults.standard.bool(forKey: "ndprofile.cptsd")
         syncProfileSettings()
-
         let storedLevel = sharedDefaults.string(forKey: rewriteLevelKey) ?? "Medium"
         rewriteLevel = ["Light", "Medium", "Strong"].contains(storedLevel) ? storedLevel : "Medium"
-
         spiralPauseEnabled = sharedDefaults.object(forKey: spiralPauseEnabledKey) == nil
             ? true : sharedDefaults.bool(forKey: spiralPauseEnabledKey)
         if sharedDefaults.object(forKey: spiralPauseEnabledKey) == nil {
@@ -738,14 +689,12 @@ struct ContentView: View {
         }
         let storedSens = sharedDefaults.string(forKey: spiralSensitivityKey) ?? "Medium"
         spiralSensitivity = sensitivities.contains(storedSens) ? storedSens : "Medium"
-
         showExplanation = true
         if sharedDefaults.object(forKey: showExplanationKey) != nil {
             showExplanation = sharedDefaults.bool(forKey: showExplanationKey)
         } else {
             sharedDefaults.set(true, forKey: showExplanationKey)
         }
-
         outcomesOptIn = sharedDefaults.bool(forKey: outcomesOptInKey)
     }
 
@@ -763,8 +712,8 @@ struct ContentView: View {
         case "Original":     return composerOriginal
         case "Grammar only": return composerGrammar.isEmpty ? composerOriginal : composerGrammar
         default:
-            if !composerNT.isEmpty    { return composerNT }
-            if !composerGrammar.isEmpty { return composerGrammar }
+            if !composerNT.isEmpty       { return composerNT }
+            if !composerGrammar.isEmpty  { return composerGrammar }
             return composerOriginal
         }
     }
@@ -815,16 +764,15 @@ struct ContentView: View {
         composerExplanation = ""
         selectedOutput = "NT version"
         feedbackSubmitted = false
-
         Task {
             do {
-                let result = try await callClaudeForComposer(text: input)
+                let result = try await callServer(text: input)
                 await MainActor.run {
-                    composerGrammar    = result.grammarOnly.isEmpty ? input : result.grammarOnly
-                    composerNT         = result.rewrite
+                    composerGrammar     = result.grammarOnly.isEmpty ? input : result.grammarOnly
+                    composerNT          = result.rewrite
                     composerExplanation = result.explanation
                     isComposerRewriting = false
-                    composerStatus     = "Ready"
+                    composerStatus      = "Ready"
                     saveLog(original: input, rewritten: result.rewrite, explanation: result.explanation, distortions: result.distortions)
                     trackOutcome(event: "rewrite_completed", inputLength: input.count, outputLength: result.rewrite.count,
                                  distortions: result.distortions, correctionMetrics: CorrectionMetrics(original: input, rewritten: result.rewrite))
@@ -843,36 +791,29 @@ struct ContentView: View {
         let distortions: [String]
     }
 
-    private func callClaudeForComposer(text: String) async throws -> ComposerResult {
+    private func callServer(text: String) async throws -> ComposerResult {
         var req = URLRequest(url: URL(string: serverURL)!)
         req.httpMethod = "POST"
-        req.setValue("2023-06-01",       forHTTPHeaderField: "anthropic-version")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(appToken, forHTTPHeaderField: "x-app-token")
         req.timeoutInterval = 90
         req.httpBody = try JSONSerialization.data(withJSONObject: [
-            "model": "claude-haiku-4-5-20251001",
-            "max_tokens": 8192,
-            "system": buildComposerSystem(),
-            "messages": [["role": "user", "content": "Text:\n\(text)\n\nReply with ONLY valid JSON."]],
+            "text":    text,
+            "profile": activeProfileLabel,
+            "level":   rewriteLevel,
+            "mode":    "tonelayer"
         ])
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw ComposerError.apiFailed(0) }
         if http.statusCode != 200 {
             if let errJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let err = errJSON["error"] as? [String: Any], let msg = err["message"] as? String {
+               let msg = errJSON["error"] as? String {
                 throw ComposerError.apiMessage("\(http.statusCode): \(msg.prefix(120))")
             }
             throw ComposerError.apiFailed(http.statusCode)
         }
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let content = (json["content"] as? [[String: Any]])?.first?["text"] as? String
+        guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { throw ComposerError.badResponse }
-
-        let cleaned = extractComposerJSON(from: content)
-        guard let parsedData = cleaned.data(using: .utf8),
-              let parsed = try? JSONSerialization.jsonObject(with: parsedData) as? [String: Any]
-        else { return ComposerResult(rewrite: cleaned.trimmingCharacters(in: .whitespacesAndNewlines), grammarOnly: "", explanation: "", distortions: []) }
-
         let rewrite: String
         if let paras = parsed["paragraphs"] as? [String], !paras.isEmpty {
             rewrite = paras.joined(separator: "\n\n")
@@ -881,43 +822,11 @@ struct ContentView: View {
         }
         guard !rewrite.isEmpty else { throw ComposerError.badResponse }
         return ComposerResult(
-            rewrite: rewrite,
+            rewrite:     rewrite,
             grammarOnly: parsed["grammar_only"] as? String ?? "",
-            explanation: parsed["explanation"] as? String ?? "",
-            distortions: parsed["distortions"] as? [String] ?? []
+            explanation: parsed["explanation"]  as? String ?? "",
+            distortions: parsed["distortions"]  as? [String] ?? []
         )
-    }
-
-    private func buildComposerSystem() -> String {
-        """
-        You are ToneLayer, a communication assistant that translates neurodivergent brain dumps into neurotypical-readable communication. Active profile: \(activeProfileLabel).
-
-        Rewrite the entire text from ND speech into NT-readable speech at the \(rewriteLevel) level. Preserve the user's intended message, requests, constraints, and necessary context. Follow the selected rewrite level exactly.
-
-        Profile instructions: \(buildProfileInstructions())
-
-        Light: small ND-to-NT adjustments; fix clarity, grammar, and tone while keeping wording close.
-        Medium: balanced ND-to-NT rewrite; structure the message for NT readers while still sounding like the user.
-        Strong: full ND-to-NT translation; concise, direct, emotionally neutral, main point first. Remove spirals, repeated urgency, metaphors, and side quests.
-
-        Always respond with ONLY valid JSON:
-        {
-          \"paragraphs\": [\"rewritten paragraph one\", \"rewritten paragraph two\"],
-          \"explanation\": \"one sentence explaining what changed and why it is more NT-readable\",
-          \"distortions\": [\"any cognitive distortions found, empty array if none\"],
-          \"grammar_only\": \"grammar-fixed version keeping the user's ND structure and meaning\"
-        }
-        """
-    }
-
-    private func extractComposerJSON(from raw: String) -> String {
-        var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if s.hasPrefix("```") {
-            if let nl = s.firstIndex(of: "\n") { s = String(s[s.index(after: nl)...]) }
-            if s.hasSuffix("```") { s = String(s.dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines) }
-        }
-        if let o = s.firstIndex(of: "{"), let c = s.lastIndex(of: "}"), o < c { return String(s[o...c]) }
-        return s
     }
 
     private func saveLog(original: String, rewritten: String, explanation: String, distortions: [String]) {
@@ -1067,9 +976,9 @@ enum ComposerError: LocalizedError {
     case apiFailed(Int); case apiMessage(String); case badResponse
     var errorDescription: String? {
         switch self {
-        case .apiFailed(let c):  return "API failed (HTTP \(c))"
+        case .apiFailed(let c):  return "Server error (HTTP \(c))"
         case .apiMessage(let m): return m
-        case .badResponse:       return "Unexpected API response"
+        case .badResponse:       return "Unexpected server response"
         }
     }
 }
