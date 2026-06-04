@@ -358,7 +358,13 @@ struct ContentView: View {
             .disabled(isDecoding || decodeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             if !decodeStatus.isEmpty {
-                Text(decodeStatus).font(.caption).foregroundStyle(.secondary)
+                Text(decodeStatus)
+                    .font(.subheadline)
+                    .foregroundStyle(decodeStatus.contains("…") ? Color.secondary : Color.red)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(decodeStatus.contains("…") ? Color.clear : Color.red.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
 
             if !decodeTranslation.isEmpty {
