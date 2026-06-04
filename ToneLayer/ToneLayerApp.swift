@@ -11,11 +11,7 @@ import SwiftUI
 struct ToneLayerApp: App {
     var body: some Scene {
         WindowGroup {
-            if shouldShowAgreement() {
-                AgreementGate()
-            } else {
-                ContentView()
-            }
+            ContentView()
         }
     }
 }
