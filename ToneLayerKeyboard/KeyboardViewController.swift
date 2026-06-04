@@ -60,6 +60,8 @@ struct KeyboardView: View {
     @State private var spiralGrammar       = ""
     @State private var spiralOriginal      = ""
     @State private var spiralOriginalCount = 0
+    @State private var isAnalyzing         = false
+    @State private var analyzeMode: AnalyzeMode = .narc
 
     private var activeProfileLabel: String {
         var p: [String] = []
@@ -154,7 +156,20 @@ struct KeyboardView: View {
                     .foregroundStyle(.white)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
-                .disabled(isRewriting)
+                .disabled(isRewriting || isAnalyzing)
+                Button(action: analyzeClipboard) {
+                    HStack(spacing: 4) {
+                        if isAnalyzing { ProgressView().scaleEffect(0.65).tint(.white) }
+                        else { Image(systemName: "magnifyingglass").font(.system(size: 12)) }
+                        Text(isAnalyzing ? "…" : "Analyze")
+                            .font(.system(size: 12, weight: .bold)).lineLimit(1).minimumScaleFactor(0.8)
+                    }
+                    .frame(width: 82).padding(.vertical, 13)
+                    .background(isAnalyzing ? Color(red: 0.55, green: 0.20, blue: 0.78).opacity(0.55) : Color(red: 0.55, green: 0.20, blue: 0.78))
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .disabled(isRewriting || isAnalyzing)
                 Button {
                     guard let text = UIPasteboard.general.string, !text.isEmpty else { showStatus("Clipboard is empty"); return }
                     keyboardTypedText = text
@@ -498,6 +513,50 @@ struct KeyboardView: View {
         )
     }
 
+    private func analyzeClipboard() {
+        guard let text = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty else {
+            showStatus("Copy a message first, then tap Analyze")
+            return
+        }
+        isAnalyzing = true
+        showStatus("Analyzing \(text.count) chars…")
+        Task {
+            do {
+                let result = try await callNarc(text: text)
+                await MainActor.run {
+                    isAnalyzing = false
+                    withAnimation { explanation = result }
+                }
+            } catch {
+                await MainActor.run {
+                    isAnalyzing = false
+                    showStatus(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    private func callNarc(text: String) async throws -> String {
+        let narcURL = "https://tonelayer.app/narc"
+        var req = URLRequest(url: URL(string: narcURL)!)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(appToken,           forHTTPHeaderField: "x-app-token")
+        req.timeoutInterval = 90
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["text": text])
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw NBError.apiFailed(0) }
+        if http.statusCode != 200 { throw NBError.apiFailed(http.statusCode) }
+        guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw NBError.badResponse
+        }
+        if let analysis = parsed["analysis"] as? String, !analysis.isEmpty { return analysis }
+        if let summary  = parsed["summary"]  as? String, !summary.isEmpty  { return summary  }
+        if let message  = parsed["message"]  as? String, !message.isEmpty  { return message  }
+        throw NBError.badResponse
+    }
+
     private func saveLog(original: String, result: ClaudeResult) {
         let entry = RewriteEntry(
             id: UUID(), timestamp: Date(), profile: activeProfileLabel, mode: level,
@@ -507,6 +566,8 @@ struct KeyboardView: View {
         DispatchQueue.global(qos: .background).async { LogStore.shared.append(entry) }
     }
 }
+
+enum AnalyzeMode { case narc, decode }
 
 enum NBError: LocalizedError {
     case apiFailed(Int); case apiMessage(String); case badResponse
