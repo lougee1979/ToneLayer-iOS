@@ -349,13 +349,11 @@ struct ContentView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(isDecoding || decodeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? Color(red: 0.10, green: 0.36, blue: 0.86).opacity(0.45)
-                    : Color(red: 0.10, green: 0.36, blue: 0.86))
+                .background(isDecoding ? Color(red: 0.10, green: 0.36, blue: 0.86).opacity(0.45) : Color(red: 0.10, green: 0.36, blue: 0.86))
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            .disabled(isDecoding || decodeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(isDecoding)
 
             if !decodeStatus.isEmpty {
                 Text(decodeStatus)
@@ -444,6 +442,14 @@ struct ContentView: View {
     }
 
     private func startDecode() {
+        if decodeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if let clip = UIPasteboard.general.string, !clip.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                decodeText = clip
+            } else {
+                decodeStatus = "Nothing to decode — copy a message first."
+                return
+            }
+        }
         let text = decodeText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         isDecoding = true
