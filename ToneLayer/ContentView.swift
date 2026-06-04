@@ -555,7 +555,7 @@ struct ContentView: View {
                             .stroke(Color(.separator), lineWidth: 0.5)
                     )
                 if testText.isEmpty {
-                    Text("Type or paste your message...")
+                    Text("Your ND message here…")
                         .foregroundStyle(.tertiary)
                         .font(.body)
                         .padding(.horizontal, 14)
