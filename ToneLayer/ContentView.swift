@@ -89,6 +89,7 @@ struct ContentView: View {
     @State private var isDecoding          = false
     @State private var decodeTranslation   = ""
     @State private var decodePatterns: [String] = []
+    @State private var decodeCommStyle     = ""
     @State private var decodeBaseline      = ""
     @State private var decodeTentative     = false
     @State private var decodeStatus        = ""
@@ -320,7 +321,7 @@ struct ContentView: View {
                     Label("Paste", systemImage: "doc.on.clipboard").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                Button { decodeText = ""; decodeTranslation = ""; decodePatterns = []; decodeBaseline = "" } label: {
+                Button { decodeText = ""; decodeTranslation = ""; decodePatterns = []; decodeCommStyle = ""; decodeBaseline = "" } label: {
                     Label("Clear", systemImage: "xmark.circle").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -415,6 +416,18 @@ struct ContentView: View {
                 }
             }
 
+            if !decodeCommStyle.isEmpty && !decodeCommStyle.lowercased().hasPrefix("neutral") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Communication style", systemImage: "brain.head.profile")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color(red: 0.44, green: 0.18, blue: 0.62))
+                    Text(decodeCommStyle)
+                        .font(.subheadline)
+                        .foregroundStyle(Color(red: 0.12, green: 0.14, blue: 0.18))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             if !decodeBaseline.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "chart.line.uptrend.xyaxis")
@@ -454,7 +467,7 @@ struct ContentView: View {
         guard !text.isEmpty else { return }
         isDecoding = true
         decodeStatus = "Decoding\u{2026}"
-        decodeTranslation = ""; decodePatterns = []; decodeBaseline = ""
+        decodeTranslation = ""; decodePatterns = []; decodeCommStyle = ""; decodeBaseline = ""
         Task {
             do {
                 let result = try await callDecode(text: text)
@@ -463,6 +476,7 @@ struct ContentView: View {
                     decodeStatus = ""
                     decodeTranslation = result.translation
                     decodePatterns    = result.patterns
+                    decodeCommStyle   = result.commStyle
                     decodeBaseline    = result.baseline
                     decodeTentative   = result.tentative
                     let contact = decodeContactName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -485,6 +499,7 @@ struct ContentView: View {
     private struct DecodeResult {
         let translation: String
         let patterns: [String]
+        let commStyle: String
         let baseline: String
         let tentative: Bool
     }
@@ -520,10 +535,11 @@ struct ContentView: View {
             ?? ""
         guard !translation.isEmpty else { throw ComposerError.badResponse }
         let patterns = parsed["flags"] as? [String] ?? parsed["patterns"] as? [String] ?? []
+        let commStyle = parsed["communication_style"] as? String ?? ""
         let baseline = parsed["baseline_note"] as? String ?? parsed["baseline"] as? String ?? parsed["note"] as? String ?? ""
         let isDefinitive = parsed["is_definitive"] as? Bool ?? true
         let tentative = !isDefinitive || baseline.lowercased().contains("building") || baseline.lowercased().contains("tentative")
-        return DecodeResult(translation: translation, patterns: patterns, baseline: baseline, tentative: tentative)
+        return DecodeResult(translation: translation, patterns: patterns, commStyle: commStyle, baseline: baseline, tentative: tentative)
     }
 
     // MARK: - Composer
