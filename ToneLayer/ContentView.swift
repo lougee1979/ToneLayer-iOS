@@ -519,9 +519,10 @@ struct ContentView: View {
             ?? parsed["analysis"] as? String
             ?? ""
         guard !translation.isEmpty else { throw ComposerError.badResponse }
-        let patterns = parsed["patterns"] as? [String] ?? []
-        let baseline = parsed["baseline"] as? String ?? parsed["note"] as? String ?? ""
-        let tentative = parsed["tentative"] as? Bool ?? (baseline.lowercased().contains("building") || baseline.lowercased().contains("tentative"))
+        let patterns = parsed["flags"] as? [String] ?? parsed["patterns"] as? [String] ?? []
+        let baseline = parsed["baseline_note"] as? String ?? parsed["baseline"] as? String ?? parsed["note"] as? String ?? ""
+        let isDefinitive = parsed["is_definitive"] as? Bool ?? true
+        let tentative = !isDefinitive || baseline.lowercased().contains("building") || baseline.lowercased().contains("tentative")
         return DecodeResult(translation: translation, patterns: patterns, baseline: baseline, tentative: tentative)
     }
 
