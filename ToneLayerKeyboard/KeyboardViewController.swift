@@ -55,6 +55,9 @@ struct KeyboardView: View {
     @State private var isShifted         = false
     @State private var isNumbers         = false
     @State private var keyboardTypedText = ""
+    @State private var previewText        = ""
+    @State private var pendingDeleteCount = 0
+    @State private var previewExplanation = ""
     @State private var showSpiral          = false
     @State private var spiralNT            = ""
     @State private var spiralGrammar       = ""
@@ -85,6 +88,8 @@ struct KeyboardView: View {
                 agreementRequiredView
             } else if showSpiral {
                 spiralCard.transition(.move(edge: .top).combined(with: .opacity))
+            } else if !previewText.isEmpty {
+                previewCard.transition(.move(edge: .top).combined(with: .opacity))
             } else if !explanation.isEmpty && showExpl {
                 explanationCard.transition(.move(edge: .top).combined(with: .opacity))
             } else {
@@ -328,6 +333,38 @@ struct KeyboardView: View {
         .padding(.horizontal, 12).padding(.vertical, 8)
     }
 
+    private var previewCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("\u{2728}  Here's the rewrite \u{2014} want to use it?").font(.system(size: 13, weight: .bold))
+            ScrollView {
+                Text(previewText)
+                    .font(.system(size: 13))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxHeight: 110)
+            if !previewExplanation.isEmpty {
+                HStack(alignment: .top, spacing: 6) {
+                    Text("\u{1F4A1}").font(.system(size: 12))
+                    Text(previewExplanation).font(.system(size: 11)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            HStack(spacing: 8) {
+                chipButton("Keep mine", primary: false) {
+                    previewText = ""; pendingDeleteCount = 0; previewExplanation = ""
+                    showStatus("Kept your original")
+                }
+                chipButton("Use this \u{2713}", primary: true) { applyPreview() }
+            }
+        }
+        .padding(14)
+        .background(Color(red: 0.91, green: 0.98, blue: 0.95))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.brandGreen.opacity(0.4), lineWidth: 1))
+        .padding(.horizontal, 12).padding(.vertical, 8)
+    }
+
     private var explanationCard: some View {
         HStack(alignment: .top, spacing: 8) {
             Text("\u{1F4A1}").font(.system(size: 13))
@@ -389,41 +426,32 @@ struct KeyboardView: View {
         guard !full.isEmpty else { showStatus("Type some text first"); return }
         showStatus("Sending \(full.count) chars\u{2026}")
         isRewriting = true; explanation = ""; showSpiral = false
+        previewText = ""; pendingDeleteCount = 0; previewExplanation = ""
         defaults?.set(true, forKey: "keyboardRewriteInProgress")
         defaults?.synchronize()
         Task {
             do {
                 let result = try await callServer(text: full)
-                await deleteBackwardChunked(proxy: proxy, count: totalToDelete)
-                await insertTextChunked(proxy: proxy, text: result.rewrite)
-                await MainActor.run {
-                    isRewriting = false
-                    if spiralEnabled && result.isSpiraling {
-                        spiralNT = result.rewrite; spiralGrammar = result.grammarOnly
-                        spiralOriginal = full; spiralOriginalCount = result.rewrite.count
-                    }
-                }
                 if spiralEnabled && result.isSpiraling {
-                    await deleteBackwardChunked(proxy: proxy, count: result.rewrite.count)
-                    await insertTextChunked(proxy: proxy, text: full)
                     await MainActor.run {
-                        keyboardTypedText = full
-                        defaults?.set(full, forKey: "testBoxFullText")
+                        isRewriting = false
+                        spiralNT = result.rewrite; spiralGrammar = result.grammarOnly
+                        spiralOriginal = full; spiralOriginalCount = totalToDelete
                         defaults?.set(false, forKey: "keyboardRewriteInProgress")
                         defaults?.synchronize()
                         withAnimation { showSpiral = true }
                     }
                 } else {
                     await MainActor.run {
-                        keyboardTypedText = result.rewrite
-                        defaults?.set(result.rewrite, forKey: "testBoxFullText")
+                        isRewriting = false
                         defaults?.set(false, forKey: "keyboardRewriteInProgress")
                         defaults?.synchronize()
+                        pendingDeleteCount = totalToDelete
                         if showExpl {
-                            let text = result.explanation.isEmpty ? "Rewritten at \(level) for \(activeProfileLabel)." : result.explanation
-                            withAnimation { explanation = text }
+                            previewExplanation = result.explanation.isEmpty ? "Rewritten at \(level) for \(activeProfileLabel)." : result.explanation
                         }
-                        showStatus("Rewritten \u{2713}")
+                        withAnimation { previewText = result.rewrite }
+                        showStatus("Review it below, then tap \u{201C}Use this\u{201D}")
                         saveLog(original: full, result: result)
                     }
                 }
@@ -479,6 +507,25 @@ struct KeyboardView: View {
                 defaults?.set(false, forKey: "keyboardRewriteInProgress"); defaults?.synchronize()
                 spiralOriginal = ""; spiralOriginalCount = 0
                 withAnimation { showSpiral = false }
+                showStatus("Applied \u{2713}")
+            }
+        }
+    }
+
+    private func applyPreview() {
+        guard !previewText.isEmpty else { return }
+        let proxy = inputVC.textDocumentProxy
+        let text = previewText
+        let deleteCount = pendingDeleteCount
+        defaults?.set(true, forKey: "keyboardRewriteInProgress"); defaults?.synchronize()
+        Task {
+            await deleteBackwardChunked(proxy: proxy, count: deleteCount)
+            await insertTextChunked(proxy: proxy, text: text)
+            await MainActor.run {
+                keyboardTypedText = text
+                defaults?.set(text, forKey: "testBoxFullText")
+                defaults?.set(false, forKey: "keyboardRewriteInProgress"); defaults?.synchronize()
+                previewText = ""; pendingDeleteCount = 0; previewExplanation = ""
                 showStatus("Applied \u{2713}")
             }
         }
