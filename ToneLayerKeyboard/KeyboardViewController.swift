@@ -153,8 +153,8 @@ struct KeyboardView: View {
                         defaults?.set(l, forKey: "rewriteLevel")
                     } label: {
                         Text(levelKeyTitle(l))
-                            .font(.system(size: 14, weight: level == l ? .bold : .semibold))
-                            .frame(maxWidth: .infinity).padding(.vertical, 8)
+                            .font(.system(size: 13, weight: level == l ? .bold : .semibold))
+                            .frame(maxWidth: .infinity).padding(.vertical, 6)
                             .background(level == l ? Color.brandGreen : Color(UIColor.systemGray4))
                             .foregroundStyle(level == l ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -168,61 +168,42 @@ struct KeyboardView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            VStack(spacing: 6) {
-                HStack(spacing: 6) {
-                    Button(action: rewrite) {
-                        HStack(spacing: 5) {
-                            if isRewriting { ProgressView().scaleEffect(0.7).tint(.white) }
-                            else { Image(systemName: "sparkles").font(.system(size: 12)) }
-                            Text(isRewriting ? "Working" : "Rewrite")
-                                .font(.system(size: 13, weight: .bold)).lineLimit(1).minimumScaleFactor(0.8)
-                        }
-                        .frame(maxWidth: .infinity).padding(.vertical, 12)
-                        .background(isRewriting ? Color.brandGreen.opacity(0.55) : Color.brandGreen)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            HStack(spacing: 6) {
+                Button(action: rewrite) {
+                    HStack(spacing: 5) {
+                        if isRewriting { ProgressView().scaleEffect(0.7).tint(.white) }
+                        else { Image(systemName: "sparkles").font(.system(size: 12)) }
+                        Text(isRewriting ? "Working" : "Rewrite")
+                            .font(.system(size: 13, weight: .bold)).lineLimit(1).minimumScaleFactor(0.8)
                     }
-                    .disabled(isRewriting || isAnalyzing)
-                    Button(action: analyzeClipboard) {
-                        HStack(spacing: 4) {
-                            if isAnalyzing { ProgressView().scaleEffect(0.65).tint(.white) }
-                            else { Image(systemName: "magnifyingglass").font(.system(size: 11)) }
-                            Text(isAnalyzing ? "…" : "Analyze")
-                                .font(.system(size: 12, weight: .bold)).lineLimit(1).minimumScaleFactor(0.75)
-                        }
-                        .frame(maxWidth: .infinity).padding(.vertical, 12)
-                        .background(isAnalyzing ? Color(red: 0.55, green: 0.20, blue: 0.78).opacity(0.55) : Color(red: 0.55, green: 0.20, blue: 0.78))
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    }
-                    .disabled(isRewriting || isAnalyzing)
+                    .frame(maxWidth: .infinity).padding(.vertical, 10)
+                    .background(isRewriting ? Color.brandGreen.opacity(0.55) : Color.brandGreen)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
-                HStack(spacing: 6) {
-                    Button {
-                        guard let text = UIPasteboard.general.string, !text.isEmpty else { showStatus("Clipboard is empty"); return }
-                        keyboardTypedText = text
-                        inputVC.textDocumentProxy.insertText(text)
-                        showStatus("Pasted \u{2014} tap Rewrite")
-                    } label: {
-                        Image(systemName: "doc.on.clipboard").font(.system(size: 14))
-                            .frame(maxWidth: .infinity, minHeight: 36).background(Color(UIColor.systemGray4))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .disabled(isRewriting || isAnalyzing)
+                Button(action: analyzeClipboard) {
+                    HStack(spacing: 4) {
+                        if isAnalyzing { ProgressView().scaleEffect(0.65).tint(.white) }
+                        else { Image(systemName: "magnifyingglass").font(.system(size: 11)) }
+                        Text(isAnalyzing ? "…" : "Analyze")
+                            .font(.system(size: 12, weight: .bold)).lineLimit(1).minimumScaleFactor(0.75)
                     }
-                    Button {
-                        inputVC.textDocumentProxy.insertText("\n"); keyboardTypedText += "\n"
-                    } label: {
-                        Image(systemName: "return").font(.system(size: 14))
-                            .frame(maxWidth: .infinity, minHeight: 36).background(Color(UIColor.systemGray4))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    Button {
-                        inputVC.textDocumentProxy.deleteBackward()
-                        if !keyboardTypedText.isEmpty { keyboardTypedText.removeLast() }
-                    } label: {
-                        Image(systemName: "delete.left").font(.system(size: 14))
-                            .frame(maxWidth: .infinity, minHeight: 36).background(Color(UIColor.systemGray4))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, 10)
+                    .background(isAnalyzing ? Color(red: 0.55, green: 0.20, blue: 0.78).opacity(0.55) : Color(red: 0.55, green: 0.20, blue: 0.78))
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .disabled(isRewriting || isAnalyzing)
+                Button {
+                    guard let text = UIPasteboard.general.string, !text.isEmpty else { showStatus("Clipboard is empty"); return }
+                    keyboardTypedText = text
+                    inputVC.textDocumentProxy.insertText(text)
+                    showStatus("Pasted \u{2014} tap Rewrite")
+                } label: {
+                    Image(systemName: "doc.on.clipboard").font(.system(size: 15))
+                        .frame(width: 44, height: 38).background(Color(UIColor.systemGray4))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
             }
             .padding(.horizontal, 14)
@@ -279,10 +260,10 @@ struct KeyboardView: View {
         }
     }
 
-    private func letterKey(_ title: String, fontSize: CGFloat = 22, action: @escaping () -> Void) -> some View {
+    private func letterKey(_ title: String, fontSize: CGFloat = 18, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title).font(.system(size: fontSize, weight: .regular))
-                .frame(maxWidth: .infinity).frame(height: 44)
+                .frame(maxWidth: .infinity).frame(height: 36)
                 .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
                 .background(Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
@@ -293,8 +274,8 @@ struct KeyboardView: View {
 
     private func modifierKey(_ title: String, active: Bool = false, width: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title).font(.system(size: 14, weight: .semibold))
-                .frame(width: width, height: 44)
+            Text(title).font(.system(size: 12, weight: .semibold))
+                .frame(width: width, height: 36)
                 .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
                 .background(active ? Color.brandGreen : Color(UIColor.systemGray4))
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
@@ -305,8 +286,8 @@ struct KeyboardView: View {
 
     private func modifierKey(systemImage: String, active: Bool = false, width: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: systemImage).font(.system(size: 16, weight: .semibold))
-                .frame(width: width, height: 44)
+            Image(systemName: systemImage).font(.system(size: 14, weight: .semibold))
+                .frame(width: width, height: 36)
                 .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
                 .background(active ? Color.brandGreen : Color(UIColor.systemGray4))
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
