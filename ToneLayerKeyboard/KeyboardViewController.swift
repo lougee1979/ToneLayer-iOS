@@ -55,6 +55,7 @@ struct KeyboardView: View {
     @State private var isShifted         = false
     @State private var isNumbers         = false
     @State private var keyboardTypedText = ""
+    @State private var keyboardWidth      = CGFloat(0)
     @State private var previewText        = ""
     @State private var pendingDeleteCount = 0
     @State private var previewExplanation = ""
@@ -212,39 +213,66 @@ struct KeyboardView: View {
         .padding(.top, 10)
     }
 
+    /// Letter keys are perfect squares — side length derived from the keyboard's
+    /// measured width so they always tile evenly across the row (10 keys + 9 gaps).
+    private var keySize: CGFloat {
+        let spacing: CGFloat = 5
+        let columns: CGFloat = 10
+        guard keyboardWidth > 0 else { return 34 }
+        return (keyboardWidth - spacing * (columns - 1)) / columns
+    }
+
     private var keyboardRows: some View {
         VStack(spacing: 6) {
             if isNumbers {
                 letterRow(["1","2","3","4","5","6","7","8","9","0"])
                 letterRow(["-","/",":",";","(",")","$","&","@","\""])
                 HStack(spacing: 5) {
-                    modifierKey("#+=", width: 52) {}
+                    modifierKey("#+=", width: keySize * 1.4) {}
                     letterRow([".",",","?","!","'"])
-                    modifierKey(systemImage: "delete.left", width: 52) {
+                    modifierKey(systemImage: "delete.left", width: keySize * 1.4) {
                         inputVC.textDocumentProxy.deleteBackward()
                         if !keyboardTypedText.isEmpty { keyboardTypedText.removeLast() }
                     }
                 }
             } else {
                 letterRow(["q","w","e","r","t","y","u","i","o","p"])
-                letterRow(["a","s","d","f","g","h","j","k","l"]).padding(.horizontal, 18)
+                letterRow(["a","s","d","f","g","h","j","k","l"]).padding(.horizontal, keySize / 2)
                 HStack(spacing: 5) {
-                    modifierKey(systemImage: isShifted ? "shift.fill" : "shift", active: isShifted, width: 48) { isShifted.toggle() }
+                    modifierKey(systemImage: isShifted ? "shift.fill" : "shift", active: isShifted, width: keySize * 1.3) { isShifted.toggle() }
                     letterRow(["z","x","c","v","b","n","m"])
-                    modifierKey(systemImage: "delete.left", width: 48) {
+                    modifierKey(systemImage: "delete.left", width: keySize * 1.3) {
                         inputVC.textDocumentProxy.deleteBackward()
                         if !keyboardTypedText.isEmpty { keyboardTypedText.removeLast() }
                     }
                 }
             }
             HStack(spacing: 5) {
-                modifierKey(isNumbers ? "ABC" : "123", width: 50) { isNumbers.toggle(); isShifted = false }
-                modifierKey(systemImage: "globe", width: 44) { inputVC.advanceToNextInputMode() }
-                letterKey("space", fontSize: 13) { inputVC.textDocumentProxy.insertText(" "); keyboardTypedText += " " }
-                modifierKey(".", width: 38) { inputVC.textDocumentProxy.insertText("."); keyboardTypedText += "." }
-                modifierKey(systemImage: "return", width: 58) { inputVC.textDocumentProxy.insertText("\n"); keyboardTypedText += "\n" }
+                modifierKey(isNumbers ? "ABC" : "123", width: keySize * 1.3) { isNumbers.toggle(); isShifted = false }
+                modifierKey(systemImage: "globe", width: keySize * 1.1) { inputVC.advanceToNextInputMode() }
+                Button {
+                    inputVC.textDocumentProxy.insertText(" ")
+                    keyboardTypedText += " "
+                } label: {
+                    Text("space").font(.system(size: 13, weight: .regular))
+                        .frame(maxWidth: .infinity).frame(height: keySize)
+                        .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        .shadow(color: Color.black.opacity(0.32), radius: 0, x: 0, y: 1)
+                }
+                .buttonStyle(.plain)
+                modifierKey(".", width: keySize) { inputVC.textDocumentProxy.insertText("."); keyboardTypedText += "." }
+                modifierKey(systemImage: "return", width: keySize * 1.6) { inputVC.textDocumentProxy.insertText("\n"); keyboardTypedText += "\n" }
             }
         }
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { keyboardWidth = geo.size.width }
+                    .onChange(of: geo.size.width) { _, newWidth in keyboardWidth = newWidth }
+            }
+        )
     }
 
     private func letterRow(_ letters: [String]) -> some View {
@@ -260,10 +288,10 @@ struct KeyboardView: View {
         }
     }
 
-    private func letterKey(_ title: String, fontSize: CGFloat = 18, action: @escaping () -> Void) -> some View {
+    private func letterKey(_ title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title).font(.system(size: fontSize, weight: .regular))
-                .frame(maxWidth: .infinity).frame(height: 36)
+            Text(title).font(.system(size: 18, weight: .regular))
+                .frame(width: keySize, height: keySize)
                 .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
                 .background(Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
@@ -275,7 +303,7 @@ struct KeyboardView: View {
     private func modifierKey(_ title: String, active: Bool = false, width: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title).font(.system(size: 12, weight: .semibold))
-                .frame(width: width, height: 36)
+                .frame(width: width, height: keySize)
                 .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
                 .background(active ? Color.brandGreen : Color(UIColor.systemGray4))
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
@@ -287,7 +315,7 @@ struct KeyboardView: View {
     private func modifierKey(systemImage: String, active: Bool = false, width: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage).font(.system(size: 14, weight: .semibold))
-                .frame(width: width, height: 36)
+                .frame(width: width, height: keySize)
                 .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
                 .background(active ? Color.brandGreen : Color(UIColor.systemGray4))
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
