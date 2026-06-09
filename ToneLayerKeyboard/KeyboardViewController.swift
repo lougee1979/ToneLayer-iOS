@@ -377,24 +377,32 @@ struct KeyboardView: View {
         .padding(.horizontal, 6)
     }
 
+    /// Letter keys are square and a fixed Apple-like size. On iPad the spare
+    /// width goes to compact side panels (action buttons) plus symmetric margin
+    /// so the key block stays centered — exactly like Apple's iPad keyboard.
     private var keySize: CGFloat {
         guard keyboardWidth > 0 else { return 34 }
-        return min((keyboardWidth - 5 * 9) / 10, 44)
+        let avail = keyboardWidth - sidePanelWidth * 2
+        return min((avail - 5 * 9) / 10, 56)
     }
 
     private var keyHeight: CGFloat { keySize }
     private var keyAreaWidth: CGFloat { keySize * 10 + 5 * 9 }
-    private var sidePanelWidth: CGFloat { max(0, (keyboardWidth - keyAreaWidth) / 2) }
+
+    /// Fixed, compact panels only on wide (iPad) layouts; none on iPhone.
+    private var sidePanelWidth: CGFloat { keyboardWidth >= 600 ? 78 : 0 }
 
     private var keyboardSection: some View {
         HStack(alignment: .top, spacing: 0) {
-            if sidePanelWidth >= 30 {
+            Spacer(minLength: 0)
+            if sidePanelWidth > 0 {
                 leftSidePanel.frame(width: sidePanelWidth)
             }
             centerKeyRows.frame(width: keyboardWidth > 0 ? keyAreaWidth : nil)
-            if sidePanelWidth >= 30 {
+            if sidePanelWidth > 0 {
                 rightSidePanel.frame(width: sidePanelWidth)
             }
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
         .background(
