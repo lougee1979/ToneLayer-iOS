@@ -383,14 +383,19 @@ struct KeyboardView: View {
     private var keySize: CGFloat {
         guard keyboardWidth > 0 else { return 34 }
         let avail = keyboardWidth - sidePanelWidth * 2
-        return min((avail - 5 * 9) / 10, 56)
+        return min((avail - 5 * 9) / 10, 58)
     }
 
     private var keyHeight: CGFloat { keySize }
     private var keyAreaWidth: CGFloat { keySize * 10 + 5 * 9 }
 
-    /// Fixed, compact panels only on wide (iPad) layouts; none on iPhone.
-    private var sidePanelWidth: CGFloat { keyboardWidth >= 600 ? 78 : 0 }
+    /// On iPad the spare width goes to side action panels (like Apple's
+    /// modifier columns) so the 10-key block stays square and centered.
+    /// 625 ≈ the key block width at the 58pt square cap (58*10 + 5*9).
+    private var sidePanelWidth: CGFloat {
+        guard keyboardWidth >= 600 else { return 0 }
+        return min(max(86, (keyboardWidth - 625) / 2), 200)
+    }
 
     private var keyboardSection: some View {
         HStack(alignment: .top, spacing: 0) {
