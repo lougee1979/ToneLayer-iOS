@@ -209,11 +209,11 @@ struct KeyboardView: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 6)
+        .padding(.vertical, 2)
     }
 
     private var mainPanel: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             if !previewText.isEmpty {
                 rewritePreview
             }
@@ -235,7 +235,7 @@ struct KeyboardView: View {
             }
             keyboardRows.padding(.horizontal, 4).padding(.bottom, 4)
         }
-        .padding(.top, 6)
+        .padding(.top, 2)
     }
 
     private var rewritePreview: some View {
