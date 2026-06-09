@@ -216,6 +216,8 @@ struct KeyboardView: View {
         VStack(spacing: 2) {
             if !previewText.isEmpty {
                 rewritePreview
+            } else if !explanation.isEmpty {
+                analyzeResult
             }
             if sidePanelWidth < 30 {
                 actionBar
@@ -241,20 +243,26 @@ struct KeyboardView: View {
     }
 
     private var rewritePreview: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(previewText)
-                .font(.system(size: 11))
-                .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
-                .lineLimit(3)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: 6) {
-                if !previewExplanation.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+            ScrollView(.vertical, showsIndicators: true) {
+                Text(previewText)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxHeight: 80)
+            if !previewExplanation.isEmpty {
+                ScrollView(.vertical, showsIndicators: true) {
                     Text(previewExplanation)
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxHeight: 44)
+            }
+            HStack(spacing: 6) {
                 Spacer()
                 chipButton("Keep mine", primary: false) {
                     previewText = ""; pendingDeleteCount = 0; previewExplanation = ""
@@ -267,6 +275,33 @@ struct KeyboardView: View {
         .background(Color(red: 0.91, green: 0.98, blue: 0.95))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.brandGreen.opacity(0.35), lineWidth: 1))
+        .padding(.horizontal, 6)
+    }
+
+    private var analyzeResult: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Analysis").font(.system(size: 10, weight: .bold)).foregroundStyle(Color(red: 0.55, green: 0.20, blue: 0.78))
+                Spacer()
+                Button { withAnimation { explanation = "" } } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary).font(.system(size: 14))
+                }
+                .buttonStyle(.plain)
+            }
+            ScrollView(.vertical, showsIndicators: true) {
+                Text(explanation)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxHeight: 88)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 0.97, green: 0.93, blue: 1.0))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color(red: 0.55, green: 0.20, blue: 0.78).opacity(0.35), lineWidth: 1))
         .padding(.horizontal, 6)
     }
 
