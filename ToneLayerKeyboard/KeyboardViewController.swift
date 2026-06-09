@@ -52,7 +52,7 @@ final class DictationManager: ObservableObject {
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputNode.outputFormat(forBus: 0)) { [weak self] buf, _ in
             self?.request?.append(buf)
         }
-        try? audioEngine.prepare()
+        audioEngine.prepare()
         try? audioEngine.start()
         isRecording = true
 
