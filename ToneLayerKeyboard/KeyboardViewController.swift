@@ -128,7 +128,8 @@ struct KeyboardView: View {
     @State private var keyboardWidth      = CGFloat(0)
     @State private var previewText        = ""
     @State private var pendingDeleteCount = 0
-    @State private var previewExplanation = ""
+    @State private var teachingBody       = ""
+    @State private var showTeachingExpanded = false
     @State private var showSpiral          = false
     @State private var spiralNT            = ""
     @State private var spiralGrammar       = ""
@@ -158,6 +159,8 @@ struct KeyboardView: View {
             Divider()
             if !agreed {
                 agreementRequiredView
+            } else if showTeachingExpanded {
+                teachingExpandedView.transition(.move(edge: .top).combined(with: .opacity))
             } else if showSpiral {
                 spiralCard.transition(.move(edge: .top).combined(with: .opacity))
             } else {
@@ -214,6 +217,7 @@ struct KeyboardView: View {
 
     private var mainPanel: some View {
         VStack(spacing: 2) {
+            teachingStrip
             if !previewText.isEmpty {
                 rewritePreview
             } else if !explanation.isEmpty {
@@ -242,6 +246,73 @@ struct KeyboardView: View {
         .padding(.top, 2)
     }
 
+    // Teaching strip — always visible, one line, tap to expand full text
+    private var teachingStrip: some View {
+        Button {
+            if !teachingBody.isEmpty { withAnimation { showTeachingExpanded = true } }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "lightbulb.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color.brandGreen)
+                Text(teachingBody.isEmpty ? "Tap Rewrite to see a teaching note" : teachingBody)
+                    .font(.system(size: 10))
+                    .foregroundStyle(teachingBody.isEmpty ? Color(UIColor.tertiaryLabel) : Color(red: 0.08, green: 0.10, blue: 0.12))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if !teachingBody.isEmpty {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Color.brandGreen)
+                }
+            }
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(Color(UIColor.systemBackground).opacity(0.8))
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 6)
+    }
+
+    // Expanded teaching view — replaces main panel, scrollable, full text
+    private var teachingExpandedView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                HStack(spacing: 5) {
+                    Image(systemName: "lightbulb.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.brandGreen)
+                    Text("Teaching note")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.brandGreen)
+                }
+                Spacer()
+                Button { withAnimation { showTeachingExpanded = false } } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            ScrollView(.vertical, showsIndicators: true) {
+                Text(teachingBody)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 4)
+            }
+            .frame(maxHeight: 170)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 0.91, green: 0.98, blue: 0.95))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.brandGreen.opacity(0.4), lineWidth: 1))
+        .padding(.horizontal, 8).padding(.vertical, 6)
+    }
+
     private var rewritePreview: some View {
         VStack(alignment: .leading, spacing: 6) {
             ScrollView(.vertical, showsIndicators: true) {
@@ -251,21 +322,11 @@ struct KeyboardView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxHeight: 80)
-            if !previewExplanation.isEmpty {
-                ScrollView(.vertical, showsIndicators: true) {
-                    Text(previewExplanation)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxHeight: 44)
-            }
+            .frame(maxHeight: 72)
             HStack(spacing: 6) {
                 Spacer()
                 chipButton("Keep mine", primary: false) {
-                    previewText = ""; pendingDeleteCount = 0; previewExplanation = ""
+                    previewText = ""; pendingDeleteCount = 0
                 }
                 chipButton("Use this ✓", primary: true) { applyPreview() }
             }
@@ -704,6 +765,7 @@ struct KeyboardView: View {
         level = ["Light", "Medium", "Strong"].contains(stored) ? stored : "Medium"
         spiralEnabled = defaults?.object(forKey: "spiralPauseEnabled") == nil ? true : (defaults?.bool(forKey: "spiralPauseEnabled") ?? true)
         showExpl = defaults?.object(forKey: "showExplanation.v2") == nil ? true : (defaults?.bool(forKey: "showExplanation.v2") ?? true)
+        teachingBody = defaults?.string(forKey: "lastTeachingNote") ?? ""
     }
 
     private func rewrite() {
@@ -739,11 +801,11 @@ struct KeyboardView: View {
                         defaults?.set(false, forKey: "keyboardRewriteInProgress")
                         defaults?.synchronize()
                         pendingDeleteCount = totalToDelete
-                        if showExpl {
-                            previewExplanation = result.explanation.isEmpty ? "Rewritten at \(level) for \(activeProfileLabel)." : result.explanation
-                        }
+                        let note = result.explanation.isEmpty ? "Rewritten at \(level) for \(activeProfileLabel)." : result.explanation
+                        teachingBody = note
+                        defaults?.set(note, forKey: "lastTeachingNote")
                         withAnimation { previewText = result.rewrite }
-                        showStatus("Review it below, then tap \u{201C}Use this\u{201D}")
+                        showStatus("Review the rewrite above \u{2191}")
                         saveLog(original: full, result: result)
                     }
                 }
