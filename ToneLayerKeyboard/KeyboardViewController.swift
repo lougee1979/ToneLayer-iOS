@@ -217,7 +217,9 @@ struct KeyboardView: View {
             if !previewText.isEmpty {
                 rewritePreview
             }
-            actionBar
+            if sidePanelWidth < 30 {
+                actionBar
+            }
             if dictation.isRecording && !dictation.partialText.isEmpty {
                 Text("🎤 " + dictation.partialText)
                     .font(.system(size: 10))
@@ -233,7 +235,7 @@ struct KeyboardView: View {
                     .padding(.horizontal, 8)
                     .lineLimit(1)
             }
-            keyboardRows.padding(.horizontal, 4).padding(.bottom, 4)
+            keyboardSection.padding(.horizontal, 4).padding(.bottom, 4)
         }
         .padding(.top, 2)
     }
@@ -340,18 +342,36 @@ struct KeyboardView: View {
         .padding(.horizontal, 6)
     }
 
-    /// Letter keys are perfect squares — side length derived from the keyboard's
-    /// measured width so they always tile evenly across the row (10 keys + 9 gaps).
     private var keySize: CGFloat {
-        let spacing: CGFloat = 5
-        let columns: CGFloat = 10
         guard keyboardWidth > 0 else { return 34 }
-        return (keyboardWidth - spacing * (columns - 1)) / columns
+        return min((keyboardWidth - 5 * 9) / 10, 44)
     }
 
-    private var keyHeight: CGFloat { min(keySize, 42) }
+    private var keyHeight: CGFloat { keySize }
+    private var keyAreaWidth: CGFloat { keySize * 10 + 5 * 9 }
+    private var sidePanelWidth: CGFloat { max(0, (keyboardWidth - keyAreaWidth) / 2) }
 
-    private var keyboardRows: some View {
+    private var keyboardSection: some View {
+        HStack(alignment: .top, spacing: 0) {
+            if sidePanelWidth >= 30 {
+                leftSidePanel.frame(width: sidePanelWidth)
+            }
+            centerKeyRows.frame(width: keyboardWidth > 0 ? keyAreaWidth : nil)
+            if sidePanelWidth >= 30 {
+                rightSidePanel.frame(width: sidePanelWidth)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { keyboardWidth = geo.size.width }
+                    .onChange(of: geo.size.width) { _, newWidth in keyboardWidth = newWidth }
+            }
+        )
+    }
+
+    private var centerKeyRows: some View {
         VStack(spacing: 6) {
             if isNumbers {
                 letterRow(["1","2","3","4","5","6","7","8","9","0"])
@@ -395,13 +415,99 @@ struct KeyboardView: View {
                 modifierKey(systemImage: "return", width: keySize * 1.6) { inputVC.textDocumentProxy.insertText("\n"); keyboardTypedText += "\n" }
             }
         }
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear { keyboardWidth = geo.size.width }
-                    .onChange(of: geo.size.width) { _, newWidth in keyboardWidth = newWidth }
+    }
+
+    private var leftSidePanel: some View {
+        VStack(spacing: 5) {
+            ForEach(["Light", "Medium", "Strong"], id: \.self) { l in
+                Button {
+                    level = l
+                    defaults?.set(l, forKey: "rewriteLevel")
+                } label: {
+                    Text(levelKeyTitle(l))
+                        .font(.system(size: 11, weight: level == l ? .bold : .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                        .background(level == l ? Color.brandGreen : Color(UIColor.systemGray4))
+                        .foregroundStyle(level == l ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
             }
-        )
+            Spacer()
+            Button(action: rewrite) {
+                HStack(spacing: 3) {
+                    if isRewriting { ProgressView().scaleEffect(0.6).tint(.white) }
+                    else { Image(systemName: "sparkles").font(.system(size: 11)) }
+                    Text(isRewriting ? "…" : "Rewrite")
+                        .font(.system(size: 11, weight: .bold)).lineLimit(1)
+                }
+                .frame(maxWidth: .infinity).padding(.vertical, 6)
+                .background(isRewriting ? Color.brandGreen.opacity(0.55) : Color.brandGreen)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .disabled(isRewriting || isAnalyzing)
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 5).padding(.vertical, 1)
+    }
+
+    private var rightSidePanel: some View {
+        VStack(spacing: 5) {
+            Button {
+                dictation.toggle { text in
+                    inputVC.textDocumentProxy.insertText(text)
+                    keyboardTypedText += text
+                }
+            } label: {
+                VStack(spacing: 2) {
+                    Image(systemName: dictation.isRecording ? "stop.circle.fill" : "mic.fill")
+                        .font(.system(size: 13))
+                    Text(dictation.isRecording ? "Stop" : "Mic")
+                        .font(.system(size: 9))
+                }
+                .foregroundStyle(dictation.isRecording ? Color.red : Color.secondary)
+                .frame(maxWidth: .infinity).padding(.vertical, 5)
+                .background(dictation.isRecording ? Color.red.opacity(0.12) : Color(UIColor.systemGray4))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            Button {
+                guard let text = UIPasteboard.general.string, !text.isEmpty else {
+                    showStatus("Clipboard is empty"); return
+                }
+                keyboardTypedText = text
+                inputVC.textDocumentProxy.insertText(text)
+                showStatus("Pasted \u{2014} tap Rewrite")
+            } label: {
+                VStack(spacing: 2) {
+                    Image(systemName: "doc.on.clipboard").font(.system(size: 13))
+                    Text("Paste").font(.system(size: 9))
+                }
+                .foregroundStyle(Color.secondary)
+                .frame(maxWidth: .infinity).padding(.vertical, 5)
+                .background(Color(UIColor.systemGray4))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            Spacer()
+            Button(action: analyzeClipboard) {
+                VStack(spacing: 2) {
+                    if isAnalyzing { ProgressView().scaleEffect(0.5).tint(.white) }
+                    else { Image(systemName: "magnifyingglass").font(.system(size: 13)) }
+                    Text(isAnalyzing ? "…" : "Analyze")
+                        .font(.system(size: 10, weight: .bold)).lineLimit(1)
+                }
+                .frame(maxWidth: .infinity).padding(.vertical, 6)
+                .background(isAnalyzing ? Color(red: 0.55, green: 0.20, blue: 0.78).opacity(0.55) : Color(red: 0.55, green: 0.20, blue: 0.78))
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .disabled(isRewriting || isAnalyzing)
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 5).padding(.vertical, 1)
     }
 
     private func letterRow(_ letters: [String]) -> some View {
