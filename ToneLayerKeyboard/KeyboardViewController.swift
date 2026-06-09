@@ -89,10 +89,6 @@ struct KeyboardView: View {
                 agreementRequiredView
             } else if showSpiral {
                 spiralCard.transition(.move(edge: .top).combined(with: .opacity))
-            } else if !previewText.isEmpty {
-                previewCard.transition(.move(edge: .top).combined(with: .opacity))
-            } else if !explanation.isEmpty && showExpl {
-                explanationCard.transition(.move(edge: .top).combined(with: .opacity))
             } else {
                 mainPanel
             }
@@ -147,6 +143,9 @@ struct KeyboardView: View {
 
     private var mainPanel: some View {
         VStack(spacing: 4) {
+            if !previewText.isEmpty {
+                rewritePreview
+            }
             actionBar
             if !status.isEmpty {
                 Text(status)
@@ -159,6 +158,36 @@ struct KeyboardView: View {
             keyboardRows.padding(.horizontal, 4).padding(.bottom, 4)
         }
         .padding(.top, 6)
+    }
+
+    private var rewritePreview: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(previewText)
+                .font(.system(size: 11))
+                .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+                .lineLimit(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 6) {
+                if !previewExplanation.isEmpty {
+                    Text(previewExplanation)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                Spacer()
+                chipButton("Keep mine", primary: false) {
+                    previewText = ""; pendingDeleteCount = 0; previewExplanation = ""
+                }
+                chipButton("Use this ✓", primary: true) { applyPreview() }
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 0.91, green: 0.98, blue: 0.95))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.brandGreen.opacity(0.35), lineWidth: 1))
+        .padding(.horizontal, 6)
     }
 
     private var actionBar: some View {
