@@ -146,71 +146,78 @@ struct KeyboardView: View {
     }
 
     private var mainPanel: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 6) {
-                ForEach(["Light", "Medium", "Strong"], id: \.self) { l in
-                    Button {
-                        level = l
-                        defaults?.set(l, forKey: "rewriteLevel")
-                    } label: {
-                        Text(levelKeyTitle(l))
-                            .font(.system(size: 13, weight: level == l ? .bold : .semibold))
-                            .frame(maxWidth: .infinity).padding(.vertical, 6)
-                            .background(level == l ? Color.brandGreen : Color(UIColor.systemGray4))
-                            .foregroundStyle(level == l ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 14)
+        VStack(spacing: 4) {
+            actionBar
             if !status.isEmpty {
-                Text(status).font(.system(size: 11)).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(status)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 8)
+                    .lineLimit(1)
             }
-            HStack(spacing: 6) {
-                Button(action: rewrite) {
-                    HStack(spacing: 5) {
-                        if isRewriting { ProgressView().scaleEffect(0.7).tint(.white) }
-                        else { Image(systemName: "sparkles").font(.system(size: 12)) }
-                        Text(isRewriting ? "Working" : "Rewrite")
-                            .font(.system(size: 13, weight: .bold)).lineLimit(1).minimumScaleFactor(0.8)
-                    }
-                    .frame(maxWidth: .infinity).padding(.vertical, 10)
-                    .background(isRewriting ? Color.brandGreen.opacity(0.55) : Color.brandGreen)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .disabled(isRewriting || isAnalyzing)
-                Button(action: analyzeClipboard) {
-                    HStack(spacing: 4) {
-                        if isAnalyzing { ProgressView().scaleEffect(0.65).tint(.white) }
-                        else { Image(systemName: "magnifyingglass").font(.system(size: 11)) }
-                        Text(isAnalyzing ? "…" : "Analyze")
-                            .font(.system(size: 12, weight: .bold)).lineLimit(1).minimumScaleFactor(0.75)
-                    }
-                    .frame(maxWidth: .infinity).padding(.vertical, 10)
-                    .background(isAnalyzing ? Color(red: 0.55, green: 0.20, blue: 0.78).opacity(0.55) : Color(red: 0.55, green: 0.20, blue: 0.78))
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .disabled(isRewriting || isAnalyzing)
-                Button {
-                    guard let text = UIPasteboard.general.string, !text.isEmpty else { showStatus("Clipboard is empty"); return }
-                    keyboardTypedText = text
-                    inputVC.textDocumentProxy.insertText(text)
-                    showStatus("Pasted \u{2014} tap Rewrite")
-                } label: {
-                    Image(systemName: "doc.on.clipboard").font(.system(size: 15))
-                        .frame(width: 44, height: 38).background(Color(UIColor.systemGray4))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-            }
-            .padding(.horizontal, 14)
-            keyboardRows.padding(.horizontal, 6).padding(.bottom, 6)
+            keyboardRows.padding(.horizontal, 4).padding(.bottom, 4)
         }
-        .padding(.top, 10)
+        .padding(.top, 6)
+    }
+
+    private var actionBar: some View {
+        HStack(spacing: 4) {
+            ForEach(["Light", "Medium", "Strong"], id: \.self) { l in
+                Button {
+                    level = l
+                    defaults?.set(l, forKey: "rewriteLevel")
+                } label: {
+                    Text(levelKeyTitle(l))
+                        .font(.system(size: 11, weight: level == l ? .bold : .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                        .background(level == l ? Color.brandGreen : Color(UIColor.systemGray4))
+                        .foregroundStyle(level == l ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+            Divider().frame(height: 20)
+            Button(action: rewrite) {
+                HStack(spacing: 3) {
+                    if isRewriting { ProgressView().scaleEffect(0.6).tint(.white) }
+                    else { Image(systemName: "sparkles").font(.system(size: 11)) }
+                    Text(isRewriting ? "…" : "Rewrite")
+                        .font(.system(size: 11, weight: .bold)).lineLimit(1)
+                }
+                .padding(.horizontal, 7).padding(.vertical, 5)
+                .background(isRewriting ? Color.brandGreen.opacity(0.55) : Color.brandGreen)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .disabled(isRewriting || isAnalyzing)
+            Button(action: analyzeClipboard) {
+                HStack(spacing: 3) {
+                    if isAnalyzing { ProgressView().scaleEffect(0.55).tint(.white) }
+                    else { Image(systemName: "magnifyingglass").font(.system(size: 11)) }
+                    Text(isAnalyzing ? "…" : "Analyze")
+                        .font(.system(size: 11, weight: .bold)).lineLimit(1)
+                }
+                .padding(.horizontal, 7).padding(.vertical, 5)
+                .background(isAnalyzing ? Color(red: 0.55, green: 0.20, blue: 0.78).opacity(0.55) : Color(red: 0.55, green: 0.20, blue: 0.78))
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .disabled(isRewriting || isAnalyzing)
+            Button {
+                guard let text = UIPasteboard.general.string, !text.isEmpty else { showStatus("Clipboard is empty"); return }
+                keyboardTypedText = text
+                inputVC.textDocumentProxy.insertText(text)
+                showStatus("Pasted \u{2014} tap Rewrite")
+            } label: {
+                Image(systemName: "doc.on.clipboard").font(.system(size: 12))
+                    .frame(width: 30, height: 28)
+                    .background(Color(UIColor.systemGray4))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+        }
+        .padding(.horizontal, 6)
     }
 
     /// Letter keys are perfect squares — side length derived from the keyboard's
@@ -221,6 +228,8 @@ struct KeyboardView: View {
         guard keyboardWidth > 0 else { return 34 }
         return (keyboardWidth - spacing * (columns - 1)) / columns
     }
+
+    private let keyHeight: CGFloat = 36
 
     private var keyboardRows: some View {
         VStack(spacing: 6) {
@@ -237,7 +246,7 @@ struct KeyboardView: View {
                 }
             } else {
                 letterRow(["q","w","e","r","t","y","u","i","o","p"])
-                letterRow(["a","s","d","f","g","h","j","k","l"]).padding(.horizontal, keySize / 2)
+                letterRow(["a","s","d","f","g","h","j","k","l"]).padding(.horizontal, (keySize + 5) / 2)
                 HStack(spacing: 5) {
                     modifierKey(systemImage: isShifted ? "shift.fill" : "shift", active: isShifted, width: keySize * 1.3) { isShifted.toggle() }
                     letterRow(["z","x","c","v","b","n","m"])
@@ -255,7 +264,7 @@ struct KeyboardView: View {
                     keyboardTypedText += " "
                 } label: {
                     Text("space").font(.system(size: 13, weight: .regular))
-                        .frame(maxWidth: .infinity).frame(height: keySize)
+                        .frame(maxWidth: .infinity).frame(height: keyHeight)
                         .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
                         .background(Color.white)
                         .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
@@ -291,7 +300,7 @@ struct KeyboardView: View {
     private func letterKey(_ title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title).font(.system(size: 18, weight: .regular))
-                .frame(width: keySize, height: keySize)
+                .frame(width: keySize, height: keyHeight)
                 .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
                 .background(Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
@@ -303,7 +312,7 @@ struct KeyboardView: View {
     private func modifierKey(_ title: String, active: Bool = false, width: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title).font(.system(size: 12, weight: .semibold))
-                .frame(width: width, height: keySize)
+                .frame(width: width, height: keyHeight)
                 .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
                 .background(active ? Color.brandGreen : Color(UIColor.systemGray4))
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
@@ -315,7 +324,7 @@ struct KeyboardView: View {
     private func modifierKey(systemImage: String, active: Bool = false, width: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage).font(.system(size: 14, weight: .semibold))
-                .frame(width: width, height: keySize)
+                .frame(width: width, height: keyHeight)
                 .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
                 .background(active ? Color.brandGreen : Color(UIColor.systemGray4))
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
