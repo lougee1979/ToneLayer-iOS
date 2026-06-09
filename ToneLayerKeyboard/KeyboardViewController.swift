@@ -697,16 +697,9 @@ struct KeyboardView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxHeight: 110)
-            if !previewExplanation.isEmpty {
-                HStack(alignment: .top, spacing: 6) {
-                    Text("\u{1F4A1}").font(.system(size: 12))
-                    Text(previewExplanation).font(.system(size: 11)).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
             HStack(spacing: 8) {
                 chipButton("Keep mine", primary: false) {
-                    previewText = ""; pendingDeleteCount = 0; previewExplanation = ""
+                    previewText = ""; pendingDeleteCount = 0
                     showStatus("Kept your original")
                 }
                 chipButton("Use this \u{2713}", primary: true) { applyPreview() }
@@ -781,7 +774,7 @@ struct KeyboardView: View {
         guard !full.isEmpty else { showStatus("Type some text first"); return }
         showStatus("Sending \(full.count) chars\u{2026}")
         isRewriting = true; explanation = ""; showSpiral = false
-        previewText = ""; pendingDeleteCount = 0; previewExplanation = ""
+        previewText = ""; pendingDeleteCount = 0
         defaults?.set(true, forKey: "keyboardRewriteInProgress")
         defaults?.synchronize()
         Task {
@@ -880,7 +873,7 @@ struct KeyboardView: View {
                 keyboardTypedText = text
                 defaults?.set(text, forKey: "testBoxFullText")
                 defaults?.set(false, forKey: "keyboardRewriteInProgress"); defaults?.synchronize()
-                previewText = ""; pendingDeleteCount = 0; previewExplanation = ""
+                previewText = ""; pendingDeleteCount = 0
                 showStatus("Applied \u{2713}")
             }
         }
