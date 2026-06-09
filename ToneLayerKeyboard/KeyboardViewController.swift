@@ -229,7 +229,7 @@ struct KeyboardView: View {
         return (keyboardWidth - spacing * (columns - 1)) / columns
     }
 
-    private let keyHeight: CGFloat = 36
+    private var keyHeight: CGFloat { min(keySize, 42) }
 
     private var keyboardRows: some View {
         VStack(spacing: 6) {
