@@ -20,6 +20,10 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ToneLayer uses the microphone for speech-to-text so you can dictate messages and rewrite them.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>ToneLayer uses speech recognition to transcribe your spoken words into text for rewriting.</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>
