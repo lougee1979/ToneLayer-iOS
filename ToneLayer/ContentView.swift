@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Alden Lougee. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, modification,
+// distribution, or derivative use is prohibited.
+
 //
 //  ContentView.swift
 //  ToneLayer
@@ -81,6 +85,7 @@ struct ContentView: View {
     @State private var feedbackSubmitted   = false
     @State private var activityItems: [Any] = []
     @State private var showingExportSheet  = false
+    @State private var showingInsight      = false
 
     // Decoder
     @State private var decodeContactName   = ""
@@ -179,6 +184,7 @@ struct ContentView: View {
                 dailyTipCard
                 composerCard
                 decoderCard
+                insightCard
                 teachingCard
                 settingsSection
                 logCard
@@ -194,6 +200,18 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingExportSheet) {
             ActivityView(activityItems: activityItems)
+        }
+        .sheet(isPresented: $showingInsight) {
+            InsightView(onUseTranscript: { text in
+                testText = text
+                sharedDefaults.set(testText, forKey: "testBoxFullText")
+                sharedDefaults.synchronize()
+                composerStatus = "Used TonalInsight transcript"
+            }, onLiveTranscriptUpdate: { text in
+                testText = text
+                sharedDefaults.set(testText, forKey: "testBoxFullText")
+                sharedDefaults.synchronize()
+            })
         }
     }
 
@@ -238,6 +256,33 @@ struct ContentView: View {
     private var todayTip: (title: String, body: String) {
         let day = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 1
         return dailyTips[(day - 1) % dailyTips.count]
+    }
+
+    private var insightCard: some View {
+        Button {
+            showingInsight = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Color.brandVioletDark)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("TonalInsight\u{2122} (Beta)")
+                        .font(.headline)
+                        .foregroundStyle(Color.primary)
+                    Text("Talk it through \u{2014} ToneLayer listens to your tone of voice")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .glassCard(tint: .brandViolet, cornerRadius: 18)
     }
 
     private var teachingCard: some View {

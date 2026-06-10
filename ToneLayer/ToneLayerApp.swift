@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Alden Lougee. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, modification,
+// distribution, or derivative use is prohibited.
+
 //
 //  ToneLayerApp.swift
 //  ToneLayer
