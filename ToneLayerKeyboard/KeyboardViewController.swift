@@ -11,10 +11,12 @@ import AVFoundation
 // MARK: - Brand colors
 
 extension Color {
-    static let brandVioletDark = Color(red: 0.04, green: 0.06, blue: 0.22)
-    static let brandViolet     = Color(red: 0.02, green: 0.23, blue: 0.98)
-    static let brandGreen      = Color(red: 0.06, green: 0.72, blue: 0.70)
-    static let brandWhite      = Color(red: 0.97, green: 0.98, blue: 0.98)
+    static let brandVioletDark = Color(red: 0.369, green: 0.122, blue: 0.784)
+    static let brandViolet     = Color(red: 0.220, green: 0.502, blue: 0.973)
+    static let brandGreen      = Color(red: 0.608, green: 0.247, blue: 0.910)
+    static let brandWhite      = Color(red: 0.976, green: 0.969, blue: 1.000)
+    static let brandGreenMist  = Color(red: 0.882, green: 0.914, blue: 0.996)
+    static let brandVioletMist = Color(red: 0.929, green: 0.878, blue: 1.000)
 }
 
 // MARK: - Dictation
@@ -111,6 +113,17 @@ class KeyboardViewController: UIInputViewController {
         [top, bot].forEach { $0.priority = .defaultHigh }
         NSLayoutConstraint.activate([top, bot, lead, trail])
     }
+
+    // Custom keyboards don't always re-layout their SwiftUI content when the
+    // device rotates, leaving the old (portrait) key sizing on screen. Force
+    // a layout pass so the GeometryReader-driven sizing recalculates.
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        coordinator.animate(alongsideTransition: { _ in
+            self.view.setNeedsLayout()
+            self.view.layoutIfNeeded()
+        })
+    }
 }
 
 // MARK: - SwiftUI keyboard view
@@ -182,7 +195,7 @@ struct KeyboardView: View {
                 mainPanel
             }
         }
-        .background(Color(UIColor.systemGroupedBackground))
+        .background(Color(red: 0.945, green: 0.937, blue: 0.984))
         .preferredColorScheme(.light)
         .onAppear { loadSettings() }
     }
@@ -205,7 +218,7 @@ struct KeyboardView: View {
     private var topBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "yinyang")
-                .foregroundStyle(Color.brandGreen)
+                .foregroundStyle(Color.brandVioletDark)
                 .font(.system(size: 15))
             VStack(alignment: .leading, spacing: 1) {
                 Text("ToneLayer").font(.system(size: 11, weight: .bold))
@@ -213,7 +226,7 @@ struct KeyboardView: View {
             }
             Spacer()
             VStack(spacing: 1) {
-                Text("ND \u{2192} NT").font(.system(size: 12, weight: .bold)).foregroundStyle(Color.brandGreen).lineLimit(1)
+                Text("ND \u{2192} NT").font(.system(size: 12, weight: .bold)).foregroundStyle(Color.brandVioletDark).lineLimit(1)
                 Text(levelKeyTitle(level)).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
             }
             Spacer()
@@ -267,7 +280,7 @@ struct KeyboardView: View {
             HStack(spacing: 6) {
                 Image(systemName: "lightbulb.fill")
                     .font(.system(size: 9))
-                    .foregroundStyle(Color.brandGreen)
+                    .foregroundStyle(Color.brandVioletDark)
                 Text(teachingBody.isEmpty ? "Tap Rewrite to see a teaching note" : teachingBody)
                     .font(.system(size: 10))
                     .foregroundStyle(teachingBody.isEmpty ? Color(UIColor.tertiaryLabel) : Color(red: 0.08, green: 0.10, blue: 0.12))
@@ -277,7 +290,7 @@ struct KeyboardView: View {
                 if !teachingBody.isEmpty {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Color.brandGreen)
+                        .foregroundStyle(Color.brandVioletDark)
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 5)
@@ -295,10 +308,10 @@ struct KeyboardView: View {
                 HStack(spacing: 5) {
                     Image(systemName: "lightbulb.fill")
                         .font(.system(size: 13))
-                        .foregroundStyle(Color.brandGreen)
+                        .foregroundStyle(Color.brandVioletDark)
                     Text("Teaching note")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color.brandGreen)
+                        .foregroundStyle(Color.brandVioletDark)
                 }
                 Spacer()
                 Button { withAnimation { showTeachingExpanded = false } } label: {
@@ -322,7 +335,7 @@ struct KeyboardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(red: 0.91, green: 0.98, blue: 0.95))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.brandGreen.opacity(0.4), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.brandVioletDark.opacity(0.4), lineWidth: 1))
         .padding(.horizontal, 8).padding(.vertical, 6)
     }
 
@@ -355,7 +368,7 @@ struct KeyboardView: View {
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "lightbulb.fill")
                         .font(.system(size: 10))
-                        .foregroundStyle(Color.brandGreen.opacity(0.8))
+                        .foregroundStyle(Color.brandVioletDark.opacity(0.8))
                     Text(teachingBody)
                         .font(.system(size: 11))
                         .italic()
@@ -368,7 +381,7 @@ struct KeyboardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(red: 0.91, green: 0.98, blue: 0.95))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.brandGreen.opacity(0.4), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.brandVioletDark.opacity(0.4), lineWidth: 1))
         .padding(.horizontal, 12).padding(.vertical, 8)
     }
 
@@ -410,7 +423,7 @@ struct KeyboardView: View {
                         .font(.system(size: 11, weight: level == l ? .bold : .semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 5)
-                        .background(level == l ? Color.brandGreen : Color(UIColor.systemGray4))
+                        .background(level == l ? Color.brandVioletDark : Color(UIColor.systemGray4))
                         .foregroundStyle(level == l ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
@@ -425,7 +438,7 @@ struct KeyboardView: View {
                         .font(.system(size: 11, weight: .bold)).lineLimit(1)
                 }
                 .padding(.horizontal, 7).padding(.vertical, 5)
-                .background(isRewriting ? Color.brandGreen.opacity(0.55) : Color.brandGreen)
+                .background(isRewriting ? Color.brandVioletDark.opacity(0.55) : Color.brandVioletDark)
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
@@ -451,9 +464,9 @@ struct KeyboardView: View {
             } label: {
                 Image(systemName: dictation.isRecording ? "stop.circle.fill" : "mic.fill")
                     .font(.system(size: 13))
-                    .foregroundStyle(dictation.isRecording ? Color.red : Color.secondary)
+                    .foregroundStyle(dictation.isRecording ? Color.red : Color.brandViolet)
                     .frame(width: 30, height: 28)
-                    .background(dictation.isRecording ? Color.red.opacity(0.12) : Color(UIColor.systemGray4))
+                    .background(dictation.isRecording ? Color.red.opacity(0.12) : Color.brandViolet.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             Button {
@@ -477,10 +490,14 @@ struct KeyboardView: View {
     private var keySize: CGFloat {
         guard keyboardWidth > 0 else { return 34 }
         let avail = keyboardWidth - sidePanelWidth * 2
-        return min((avail - 5 * 9) / 10, 58)
+        return min((avail - 5 * 9) / 10, 70)
     }
 
-    private var keyHeight: CGFloat { keySize }
+    /// Capped independently of width: on iPad, landscape gives extra
+    /// horizontal room but not extra vertical room, so wider keys should
+    /// stay rectangular (like Apple's iPad keyboard) rather than growing
+    /// the whole keyboard taller and risking clipping.
+    private var keyHeight: CGFloat { min(keySize, 56) }
     private var keyAreaWidth: CGFloat { keySize * 10 + 5 * 9 }
 
     /// Width for the shift/delete keys on the z-row so that row totals
@@ -493,10 +510,10 @@ struct KeyboardView: View {
 
     /// On iPad the spare width goes to side action panels (like Apple's
     /// modifier columns) so the 10-key block stays square and centered.
-    /// 625 ≈ the key block width at the 58pt square cap (58*10 + 5*9).
+    /// 745 ≈ the key block width at the 70pt square cap (70*10 + 5*9).
     private var sidePanelWidth: CGFloat {
         guard keyboardWidth >= 600 else { return 0 }
-        return min(max(86, (keyboardWidth - 625) / 2), 200)
+        return min(max(86, (keyboardWidth - 745) / 2), 280)
     }
 
     private var keyboardSection: some View {
@@ -576,15 +593,13 @@ struct KeyboardView: View {
                 } label: {
                     Text(levelKeyTitle(l))
                         .font(.system(size: 11, weight: level == l ? .bold : .semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 5)
-                        .background(level == l ? Color.brandGreen : Color(UIColor.systemGray4))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(level == l ? Color.brandVioletDark : Color(UIColor.systemGray4))
                         .foregroundStyle(level == l ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
-            Spacer()
             Button(action: rewrite) {
                 HStack(spacing: 3) {
                     if isRewriting { ProgressView().scaleEffect(0.6).tint(.white) }
@@ -592,8 +607,8 @@ struct KeyboardView: View {
                     Text(isRewriting ? "…" : "Rewrite")
                         .font(.system(size: 11, weight: .bold)).lineLimit(1)
                 }
-                .frame(maxWidth: .infinity).padding(.vertical, 6)
-                .background(isRewriting ? Color.brandGreen.opacity(0.55) : Color.brandGreen)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(isRewriting ? Color.brandVioletDark.opacity(0.55) : Color.brandVioletDark)
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
@@ -617,9 +632,9 @@ struct KeyboardView: View {
                     Text(dictation.isRecording ? "Stop" : "Mic")
                         .font(.system(size: 9))
                 }
-                .foregroundStyle(dictation.isRecording ? Color.red : Color.secondary)
-                .frame(maxWidth: .infinity).padding(.vertical, 5)
-                .background(dictation.isRecording ? Color.red.opacity(0.12) : Color(UIColor.systemGray4))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .foregroundStyle(dictation.isRecording ? Color.red : Color.brandViolet)
+                .background(dictation.isRecording ? Color.red.opacity(0.12) : Color.brandViolet.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -635,13 +650,12 @@ struct KeyboardView: View {
                     Image(systemName: "doc.on.clipboard").font(.system(size: 13))
                     Text("Paste").font(.system(size: 9))
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .foregroundStyle(Color.secondary)
-                .frame(maxWidth: .infinity).padding(.vertical, 5)
                 .background(Color(UIColor.systemGray4))
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .buttonStyle(.plain)
-            Spacer()
             Button(action: analyzeClipboard) {
                 VStack(spacing: 2) {
                     if isAnalyzing { ProgressView().scaleEffect(0.5).tint(.white) }
@@ -649,7 +663,7 @@ struct KeyboardView: View {
                     Text(isAnalyzing ? "…" : "Analyze")
                         .font(.system(size: 10, weight: .bold)).lineLimit(1)
                 }
-                .frame(maxWidth: .infinity).padding(.vertical, 6)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(isAnalyzing ? Color(red: 0.55, green: 0.20, blue: 0.78).opacity(0.55) : Color(red: 0.55, green: 0.20, blue: 0.78))
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
@@ -690,7 +704,7 @@ struct KeyboardView: View {
             Text(title).font(.system(size: 12, weight: .semibold))
                 .frame(width: width, height: keyHeight)
                 .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
-                .background(active ? Color.brandGreen : Color(UIColor.systemGray4))
+                .background(active ? Color.brandVioletDark : Color(UIColor.systemGray4))
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 .shadow(color: Color.black.opacity(0.22), radius: 0, x: 0, y: 1)
         }
@@ -702,7 +716,7 @@ struct KeyboardView: View {
             Image(systemName: systemImage).font(.system(size: 14, weight: .semibold))
                 .frame(width: width, height: keyHeight)
                 .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
-                .background(active ? Color.brandGreen : Color(UIColor.systemGray4))
+                .background(active ? Color.brandVioletDark : Color(UIColor.systemGray4))
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 .shadow(color: Color.black.opacity(0.22), radius: 0, x: 0, y: 1)
         }
@@ -723,7 +737,7 @@ struct KeyboardView: View {
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "lightbulb.fill")
                         .font(.system(size: 10))
-                        .foregroundStyle(Color.brandGreen.opacity(0.8))
+                        .foregroundStyle(Color.brandVioletDark.opacity(0.8))
                     Text(teachingBody)
                         .font(.system(size: 11))
                         .italic()
@@ -735,7 +749,7 @@ struct KeyboardView: View {
         .padding(14)
         .background(Color(red: 0.91, green: 0.98, blue: 0.95))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.brandGreen.opacity(0.4), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.brandVioletDark.opacity(0.4), lineWidth: 1))
         .padding(.horizontal, 12).padding(.vertical, 8)
     }
 
@@ -744,7 +758,7 @@ struct KeyboardView: View {
         Button(action: action) {
             Text(title).font(.system(size: 11, weight: .semibold))
                 .frame(maxWidth: .infinity).padding(.vertical, 8)
-                .background(primary ? Color.brandGreen : Color(UIColor.systemGray4))
+                .background(primary ? Color.brandVioletDark : Color(UIColor.systemGray4))
                 .foregroundStyle(primary ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
@@ -779,7 +793,7 @@ struct KeyboardView: View {
         let before     = proxy.documentContextBeforeInput ?? ""
         let typedText  = keyboardTypedText.trimmingCharacters(in: .whitespacesAndNewlines)
         let cursorText = before.trimmingCharacters(in: .whitespacesAndNewlines)
-        let shouldUseTypedText = !typedText.isEmpty && (cursorText.isEmpty || before.hasSuffix(keyboardTypedText))
+        let shouldUseTypedText = !typedText.isEmpty && (cursorText.isEmpty || keyboardTypedText.hasSuffix(before))
         let full          = shouldUseTypedText ? typedText  : cursorText
         let totalToDelete = shouldUseTypedText ? keyboardTypedText.count : before.count
         guard !full.isEmpty else { showStatus("Type some text first"); return }
@@ -968,7 +982,7 @@ struct KeyboardView: View {
                 let result = try await callNarc(text: text)
                 await MainActor.run {
                     isAnalyzing = false
-                    withAnimation { explanation = result }
+                    withAnimation { explanation = formatNarcResult(result) }
                 }
             } catch {
                 await MainActor.run {
@@ -979,7 +993,22 @@ struct KeyboardView: View {
         }
     }
 
-    private func callNarc(text: String) async throws -> String {
+    private struct NarcPattern {
+        let name: String
+        let quote: String
+        let explanation: String
+        let ndImpact: String
+    }
+
+    private struct NarcResult {
+        let riskLevel: String
+        let summary: String
+        let patterns: [NarcPattern]
+        let validation: String
+        let boundaryScript: String
+    }
+
+    private func callNarc(text: String) async throws -> NarcResult {
         let narcURL = "https://tonelayer-server-production.up.railway.app/narc"
         var req = URLRequest(url: URL(string: narcURL)!)
         req.httpMethod = "POST"
@@ -989,14 +1018,49 @@ struct KeyboardView: View {
         req.httpBody = try JSONSerialization.data(withJSONObject: ["text": text])
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw NBError.apiFailed(0) }
-        if http.statusCode != 200 { throw NBError.apiFailed(http.statusCode) }
+        if http.statusCode != 200 {
+            if let errJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let msg = errJSON["error"] as? String {
+                throw NBError.apiMessage("\(http.statusCode): \(msg.prefix(120))")
+            }
+            throw NBError.apiFailed(http.statusCode)
+        }
         guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw NBError.badResponse
         }
-        if let analysis = parsed["analysis"] as? String, !analysis.isEmpty { return analysis }
-        if let summary  = parsed["summary"]  as? String, !summary.isEmpty  { return summary  }
-        if let message  = parsed["message"]  as? String, !message.isEmpty  { return message  }
-        throw NBError.badResponse
+        let summary        = parsed["summary"] as? String ?? ""
+        let validation     = parsed["validation"] as? String ?? ""
+        let boundaryScript = parsed["boundary_script"] as? String ?? ""
+        let riskLevel      = parsed["risk_level"] as? String ?? ""
+        let patterns = (parsed["patterns"] as? [[String: Any]] ?? []).map { p in
+            NarcPattern(
+                name:        p["name"]        as? String ?? "",
+                quote:       p["quote"]       as? String ?? "",
+                explanation: p["explanation"] as? String ?? "",
+                ndImpact:    p["nd_impact"]    as? String ?? ""
+            )
+        }
+        guard !summary.isEmpty || !patterns.isEmpty else { throw NBError.badResponse }
+        return NarcResult(riskLevel: riskLevel, summary: summary, patterns: patterns, validation: validation, boundaryScript: boundaryScript)
+    }
+
+    /// Turns the structured /narc result into the plain-text block shown in
+    /// the Analysis card, leading with the specific patterns found (name +
+    /// quote + why it matters) rather than just a generic summary.
+    private func formatNarcResult(_ r: NarcResult) -> String {
+        var lines: [String] = []
+        if !r.summary.isEmpty { lines.append(r.summary) }
+        for p in r.patterns {
+            var line = "• " + (p.name.isEmpty ? "Pattern noticed" : p.name)
+            if !p.quote.isEmpty { line += " — \"\(p.quote)\"" }
+            if !p.explanation.isEmpty { line += "\n  \(p.explanation)" }
+            if !p.ndImpact.isEmpty { line += "\n  Why this hits harder: \(p.ndImpact)" }
+            lines.append(line)
+        }
+        if !r.validation.isEmpty { lines.append(r.validation) }
+        if !r.boundaryScript.isEmpty { lines.append("You could say: \"\(r.boundaryScript)\"") }
+        if lines.isEmpty { lines.append("No concerning patterns found in this message.") }
+        return lines.joined(separator: "\n\n")
     }
 
     private func saveLog(original: String, result: ClaudeResult) {

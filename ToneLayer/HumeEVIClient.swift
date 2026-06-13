@@ -22,7 +22,8 @@ final class HumeEVIClient: NSObject, ObservableObject {
     @Published var topEmotions: [(name: String, score: Double)] = []
     @Published var rawLog: [String] = []
 
-    private let apiKey = "rlGGHRNACZNW1CU5rsrkdGypMtY57W8Impbm2LW9nhUri1r9"
+    private let apiKey    = "iGJur1J59jimvanwNivAtw1tCyUkEKZA77j9MUSHTApvUwUN"
+    private let secretKey = "IMcIJVkuFypeG3x3LQHOy1NmRvZYoRTg1EGVAyodQNCPQ6GGO8HW9TEG0098az2Z"
 
     private var webSocketTask: URLSessionWebSocketTask?
     private var urlSession: URLSession?
@@ -30,11 +31,22 @@ final class HumeEVIClient: NSObject, ObservableObject {
 
     private var audioPlayer: AVAudioPlayer?
     private var audioQueue: [Data] = []
+    private var isConnecting = false
+
+    // Resumed once Hume confirms (or rejects) the websocket handshake, so
+    // `connect()` knows definitively whether this attempt worked instead of
+    // guessing from a later `receive()` failure. `connectTask` identifies
+    // which attempt the continuation belongs to, so a stale delegate
+    // callback from an earlier (already-abandoned) attempt can't resume it
+    // a second time and crash.
+    private var connectContinuation: CheckedContinuation<Void, Error>?
+    private var connectTask: URLSessionWebSocketTask?
 
     private let sendSampleRate: Double = 48_000
 
     func connect() {
-        guard webSocketTask == nil else { return }
+        guard webSocketTask == nil, !isConnecting else { return }
+        isConnecting = true
 
         transcript = ""
         assistantText = ""
@@ -42,20 +54,24 @@ final class HumeEVIClient: NSObject, ObservableObject {
         audioQueue.removeAll()
 
         configureAudioSession()
-
-        var components = URLComponents(string: "wss://api.hume.ai/v0/evi/chat")!
-        components.queryItems = [URLQueryItem(name: "apiKey", value: apiKey)]
-
-        let session = URLSession(configuration: .default, delegate: nil, delegateQueue: nil)
-        urlSession = session
-        let task = session.webSocketTask(with: components.url!)
-        webSocketTask = task
-        task.resume()
-
         statusText = "Connecting\u{2026}"
-        receiveLoop()
 
         Task {
+            defer { isConnecting = false }
+            do {
+                try await openSocket(useOAuth: true)
+            } catch {
+                appendLog("OAuth connect failed (\(error.localizedDescription)) \u{2014} retrying with API key")
+                cleanupSocket()
+                do {
+                    try await openSocket(useOAuth: false)
+                } catch {
+                    appendLog("Connect error: \(error.localizedDescription)")
+                    disconnect(reason: "Error: \(error.localizedDescription)")
+                    return
+                }
+            }
+
             do {
                 try await sendSessionSettings()
                 try startMicrophone()
@@ -75,12 +91,66 @@ final class HumeEVIClient: NSObject, ObservableObject {
         audioPlayer = nil
         audioQueue.removeAll()
         isSpeaking = false
-        webSocketTask?.cancel(with: .goingAway, reason: nil)
-        webSocketTask = nil
-        urlSession = nil
+        cleanupSocket()
         isConnected = false
         statusText = reason
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    // MARK: - Connection
+
+    /// Opens the EVI websocket using either OAuth (`access_token`) or the
+    /// direct `apiKey` query param, and waits for Hume to confirm the
+    /// handshake before returning. Throws if Hume rejects the connection
+    /// (e.g. a 401 during the websocket upgrade), so `connect()` can fall
+    /// back to the other auth method instead of surfacing a vague
+    /// "socket is not connected" error.
+    private func openSocket(useOAuth: Bool) async throws {
+        var components = URLComponents(string: "wss://api.hume.ai/v0/evi/chat")!
+        if useOAuth {
+            let token = try await fetchAccessToken()
+            components.queryItems = [URLQueryItem(name: "access_token", value: token)]
+        } else {
+            components.queryItems = [URLQueryItem(name: "apiKey", value: apiKey)]
+        }
+
+        let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+        urlSession = session
+        let task = session.webSocketTask(with: components.url!)
+        webSocketTask = task
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            connectContinuation = continuation
+            connectTask = task
+            task.resume()
+        }
+        connectTask = nil
+
+        receiveLoop()
+    }
+
+    private func cleanupSocket() {
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
+        urlSession = nil
+    }
+
+    // MARK: - Auth
+
+    private func fetchAccessToken() async throws -> String {
+        var req = URLRequest(url: URL(string: "https://api.hume.ai/oauth2-cc/token")!)
+        req.httpMethod = "POST"
+        req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        let credentials = Data("\(apiKey):\(secretKey)".utf8).base64EncodedString()
+        req.setValue("Basic \(credentials)", forHTTPHeaderField: "Authorization")
+        req.httpBody = Data("grant_type=client_credentials".utf8)
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let token = json["access_token"] as? String
+        else { throw HumeEVIError.tokenFailed }
+        return token
     }
 
     // MARK: - Audio session
@@ -100,6 +170,9 @@ final class HumeEVIClient: NSObject, ObservableObject {
     private func sendSessionSettings() async throws {
         let settings: [String: Any] = [
             "type": "session_settings",
+            "system_prompt": """
+            You are TonalInsight, a warm, conversational voice companion inside ToneLayer, an app built for neurodivergent people (ADHD, Autism, PTSD/CPTSD). The person just opened this to talk something through or check in. Keep responses short — a sentence or two, not a lecture. Ask one open question at a time. Reflect back what you're hearing, help them think out loud, and gently offer to help problem-solve only if they seem to want that. Warm, casual, non-clinical tone — like a thoughtful friend, not a therapist.
+            """,
             "audio": [
                 "channels": 1,
                 "encoding": "linear16",
@@ -107,12 +180,25 @@ final class HumeEVIClient: NSObject, ObservableObject {
             ]
         ]
         try await sendJSON(settings)
+
+        // Have the assistant speak first so the session feels like an
+        // invitation to talk, not a silent recorder waiting for input.
+        let openers = [
+            "Hey, I'm here. What's on your mind, or do you just want to check in for a sec?",
+            "Hi there. How are you doing right now \u{2014} anything you want to talk through?",
+            "Hey. I'm listening — want to think something out loud, or just say how today's going?"
+        ]
+        try await sendJSON([
+            "type": "assistant_input",
+            "text": openers.randomElement() ?? openers[0]
+        ])
     }
 
     private func sendJSON(_ object: [String: Any]) async throws {
+        guard let webSocketTask else { throw HumeEVIError.connectionFailed }
         let data = try JSONSerialization.data(withJSONObject: object)
         let text = String(data: data, encoding: .utf8) ?? "{}"
-        try await webSocketTask?.send(.string(text))
+        try await webSocketTask.send(.string(text))
     }
 
     // MARK: - Microphone capture
@@ -167,9 +253,10 @@ final class HumeEVIClient: NSObject, ObservableObject {
             guard let self else { return }
             Task { @MainActor in
                 switch result {
-                case .failure(let error):
-                    self.statusText = "Connection closed: \(error.localizedDescription)"
-                    self.isConnected = false
+                case .failure:
+                    // The websocket delegate's didCompleteWithError handles
+                    // status updates and cleanup for unexpected closes.
+                    break
                 case .success(let message):
                     if case .string(let text) = message {
                         self.handleIncoming(text)
@@ -280,12 +367,53 @@ extension HumeEVIClient: AVAudioPlayerDelegate {
     }
 }
 
+extension HumeEVIClient: URLSessionWebSocketDelegate {
+    nonisolated func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol protocol: String?) {
+        Task { @MainActor in
+            guard self.connectTask === webSocketTask, let continuation = self.connectContinuation else { return }
+            self.connectContinuation = nil
+            self.connectTask = nil
+            continuation.resume()
+        }
+    }
+
+    nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        Task { @MainActor in
+            if self.connectTask === task, let continuation = self.connectContinuation {
+                // Handshake never succeeded — let connect() try the fallback auth method.
+                self.connectContinuation = nil
+                self.connectTask = nil
+                continuation.resume(throwing: error ?? HumeEVIError.connectionFailed)
+                return
+            }
+            // Connection dropped after being established (or a stale callback
+            // from an already-abandoned attempt) — only act if this is still
+            // the active socket.
+            guard self.webSocketTask === task else { return }
+            self.webSocketTask = nil
+            self.urlSession = nil
+            // If Hume already sent an explicit "error" message (e.g. zero
+            // credits), keep that message instead of overwriting it with a
+            // generic "Connection closed".
+            if !self.statusText.hasPrefix("Error:") {
+                let description = error?.localizedDescription ?? "Connection closed"
+                self.statusText = "Connection closed: \(description)"
+            }
+            self.isConnected = false
+        }
+    }
+}
+
 enum HumeEVIError: LocalizedError {
     case audioFormat
+    case tokenFailed
+    case connectionFailed
 
     var errorDescription: String? {
         switch self {
         case .audioFormat: return "Could not configure audio format for Hume EVI"
+        case .tokenFailed: return "Could not authenticate with Hume"
+        case .connectionFailed: return "Could not connect to Hume EVI"
         }
     }
 }
