@@ -21,6 +21,48 @@ enum AppConfig {
     static let appToken     = "d731136d97cdd46453e7581465537e0d9aee811512b885c2"
 }
 
+/// Which engine produced a rewrite — and therefore whether the user's text
+/// left their phone. We use this to tell the user, plainly, every time.
+enum RewritePrivacy {
+    case onDevice   // handled on the phone by Apple's on-device model — nothing left
+    case offPhone   // sent to ToneLayer's server + Claude — the text left the phone
+
+    var stayedOnPhone: Bool { self == .onDevice }
+
+    var title: String {
+        switch self {
+        case .onDevice: return "Private — stayed on this phone"
+        case .offPhone: return "Sent off your phone to ToneLayer's AI"
+        }
+    }
+    var systemImage: String {
+        switch self {
+        case .onDevice: return "lock.iphone"
+        case .offPhone: return "antenna.radiowaves.left.and.right"
+        }
+    }
+    var tint: Color {
+        self == .onDevice ? .brandGreen : Color(red: 0.85, green: 0.55, blue: 0.0)
+    }
+}
+
+/// A small, honest indicator of where a rewrite was processed. Apple-style:
+/// the user is told the moment their text actually leaves the device.
+struct PrivacyBadge: View {
+    let privacy: RewritePrivacy
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: privacy.systemImage)
+            Text(privacy.title).font(.caption.weight(.semibold))
+        }
+        .foregroundStyle(privacy.tint)
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(privacy.tint.opacity(0.12))
+        .clipShape(Capsule())
+        .accessibilityElement(children: .combine)
+    }
+}
+
 extension View {
     func appBackground() -> some View {
         self
