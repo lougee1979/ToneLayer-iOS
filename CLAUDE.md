@@ -28,14 +28,26 @@ These two color-coded folders are the ONLY dev folders. Always.
 
 The user has stated this repeatedly and clearly. Honor it without exception.
 
-## SECURITY/PRIVACY RULE — FROZEN. ALWAYS DO THIS.
+## SECURITY/PRIVACY RULE — FROZEN. THE #1 PRIORITY, ABOVE ALL ELSE.
+
+Protecting the user's security and privacy comes BEFORE features, speed,
+convenience, or anything else. Be constantly vigilant. Treat every change
+as a possible threat to security until proven otherwise, and PROACTIVELY
+raise anything that could expose private data — without waiting to be asked.
 
 The user's text is private and sensitive. ToneLayer and Clarity rewrite
 people's real messages — often emotional, personal, or high-stakes — and
-sending that text to an AI service is the single biggest security/privacy
-risk in this product.
+sending that text (or voice) to an AI service is the single biggest
+security/privacy risk in this product. Users unknowingly putting all their
+private business out where anyone could access it is UNACCEPTABLE and must
+be prevented and flagged the moment it could happen.
 
 ALWAYS, without being asked:
+- Actively watch for and call out ANY path where the user's text or voice
+  leaves the device or could be seen by a third party (server logs,
+  analytics, Hume voice analysis, a full-access keyboard, etc.).
+- Prefer designs that only touch the text the user EXPLICITLY selects or
+  highlights, over anything with broad access to everything they type.
 - Treat every user message as sensitive data. Minimize what leaves the
   device, never log or store raw message content on the server, and never
   send more than is needed to do the rewrite/decode.
