@@ -258,21 +258,16 @@ struct KeyboardView: View {
             if sidePanelWidth < 30 {
                 actionBar
             }
-            if dictation.isRecording && !dictation.partialText.isEmpty {
-                Text("🎤 " + dictation.partialText)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 8)
-                    .lineLimit(2)
-            } else if !status.isEmpty {
-                Text(status)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 8)
-                    .lineLimit(1)
-            }
+            // Status / dictation line — ALWAYS rendered at a fixed height so the
+            // keys never shift up or down when a message appears or clears.
+            Text(dictation.isRecording && !dictation.partialText.isEmpty
+                 ? "🎤 " + dictation.partialText
+                 : status)
+                .font(.system(size: 10))
+                .foregroundStyle(dictation.isRecording ? Color.primary : Color.secondary)
+                .frame(maxWidth: .infinity, minHeight: 14, alignment: .leading)
+                .padding(.horizontal, 8)
+                .lineLimit(1)
             suggestionBar
             keyboardSection.padding(.horizontal, 4).padding(.bottom, 4)
         }
