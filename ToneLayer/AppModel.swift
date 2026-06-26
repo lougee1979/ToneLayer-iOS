@@ -22,6 +22,10 @@ final class AppModel: ObservableObject {
     @Published var outcomesOptIn      = false
     @Published var analyticsOptIn     = false
 
+    // Privacy Mode: true = Secure (on-device, nothing leaves the phone),
+    // false = Full (off-device for stronger rewrites + voice-tone). Default Secure.
+    @Published var privacyModeSecure  = true
+
     // Cross-tab text buffer: Compose composer <-> Settings testCard <-> Insight sheet callbacks
     @Published var testText = ""
 
@@ -44,6 +48,7 @@ final class AppModel: ObservableObject {
     private let outcomesOptInKey      = "outcomesOptIn"
     private let analyticsOptInKey     = "analyticsOptIn"
     private let analyticsInstallIDKey = "analyticsInstallID"
+    private let privacyModeSecureKey  = "privacyModeSecure"
 
     var sharedDefaults: UserDefaults {
         UserDefaults(suiteName: appGroupID) ?? .standard
@@ -114,6 +119,8 @@ final class AppModel: ObservableObject {
         }
         outcomesOptIn = sharedDefaults.bool(forKey: outcomesOptInKey)
         analyticsOptIn = sharedDefaults.bool(forKey: analyticsOptInKey)
+        privacyModeSecure = sharedDefaults.object(forKey: privacyModeSecureKey) == nil
+            ? true : sharedDefaults.bool(forKey: privacyModeSecureKey)
     }
 
     func saveLevel(_ l: String) {
@@ -144,6 +151,11 @@ final class AppModel: ObservableObject {
     func saveAnalyticsOptIn(_ v: Bool) {
         analyticsOptIn = v
         sharedDefaults.set(v, forKey: analyticsOptInKey)
+    }
+
+    func savePrivacyMode(_ secure: Bool) {
+        privacyModeSecure = secure
+        sharedDefaults.set(secure, forKey: privacyModeSecureKey)
     }
 
     func loadLog() {

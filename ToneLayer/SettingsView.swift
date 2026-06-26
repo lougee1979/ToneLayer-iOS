@@ -22,6 +22,7 @@ struct SettingsView: View {
                 levelCard
                 spiralPauseCard
                 explanationToggleCard
+                privacyModeCard
                 privacyAndOutcomesCard
                 analyticsCard
                 testCard
@@ -155,6 +156,50 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary).font(.subheadline)
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(20).glassCard(tint: .brandVioletDark)
+    }
+
+    private var privacyModeCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Privacy Mode", systemImage: "lock.shield").font(.title3.weight(.semibold))
+            Text("You choose where your rewrites happen. Secure keeps everything on your phone. Full sends your text off your phone for the strongest rewrites and voice-tone.")
+                .foregroundStyle(.secondary).font(.subheadline)
+            Picker("Privacy Mode", selection: $appModel.privacyModeSecure) {
+                Text("Secure").tag(true)
+                Text("Full").tag(false)
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: appModel.privacyModeSecure) { _, v in appModel.savePrivacyMode(v) }
+            VStack(alignment: .leading, spacing: 10) {
+                privacyModeRow(active: appModel.privacyModeSecure,
+                               icon: "lock.iphone",
+                               title: "Secure — stays on your phone",
+                               detail: "Nothing leaves the device. Private, free, unlimited. Best for everyday messages.")
+                privacyModeRow(active: !appModel.privacyModeSecure,
+                               icon: "antenna.radiowaves.left.and.right",
+                               title: "Full — sent off your phone",
+                               detail: "Strongest Claude rewrites and voice-tone. More capable, less private.")
+            }
+            Text("On-device Secure rewrites turn on in the next update. Until then every rewrite uses Full mode \u{2014} and the badge on each rewrite will always tell you the moment your text leaves the phone.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .glassCard(tint: .brandGreen)
+    }
+
+    private func privacyModeRow(active: Bool, icon: String, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(active ? Color.brandVioletDark : Color.secondary)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.subheadline.weight(.semibold))
+                    .foregroundStyle(active ? Color.primary : Color.secondary)
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
     }
 
     private var privacyAndOutcomesCard: some View {
