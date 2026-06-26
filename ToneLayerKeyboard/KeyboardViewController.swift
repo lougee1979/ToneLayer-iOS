@@ -165,6 +165,11 @@ struct KeyboardView: View {
     @StateObject private var dictation     = DictationManager()
     @State private var analyzeMode: AnalyzeMode = .narc
 
+    // On-device predictive text + spelling suggestions. Apple's UITextChecker
+    // runs entirely on the phone, so nothing you type leaves the device for this.
+    @State private var suggestions: [String] = []
+    private let spellChecker = UITextChecker()
+
     private var activeProfileLabel: String {
         var p: [String] = []
         if profileAUDHD {
@@ -198,6 +203,7 @@ struct KeyboardView: View {
         .background(Color(red: 0.945, green: 0.937, blue: 0.984))
         .preferredColorScheme(.light)
         .onAppear { loadSettings() }
+        .onChange(of: keyboardTypedText) { _, _ in updateSuggestions() }
     }
 
     private var agreementRequiredView: some View {
@@ -267,9 +273,81 @@ struct KeyboardView: View {
                     .padding(.horizontal, 8)
                     .lineLimit(1)
             }
+            suggestionBar
             keyboardSection.padding(.horizontal, 4).padding(.bottom, 4)
         }
         .padding(.top, 2)
+    }
+
+    // Fixed, stationary strip of up to three on-device suggestions for the word
+    // being typed. Stays the same height even when empty so it never jumps.
+    private var suggestionBar: some View {
+        HStack(spacing: 6) {
+            if suggestions.isEmpty {
+                Color.clear
+            } else {
+                ForEach(suggestions, id: \.self) { s in
+                    Button { applySuggestion(s) } label: {
+                        Text(s)
+                            .font(.system(size: 15))
+                            .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 7)
+                            .background(Color(UIColor.systemBackground).opacity(0.9))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(height: 38)
+        .padding(.horizontal, 6)
+    }
+
+    // The run of word characters immediately before the cursor — i.e. the word
+    // currently being typed. Always available near the cursor, never truncated.
+    private var currentPartialWord: String {
+        let before = inputVC.textDocumentProxy.documentContextBeforeInput ?? ""
+        let tail = before.reversed().prefix { $0.isLetter || $0 == "'" }
+        return String(tail.reversed())
+    }
+
+    private func updateSuggestions() {
+        let word = currentPartialWord
+        guard word.count >= 1 else { suggestions = []; return }
+        let range = NSRange(location: 0, length: word.utf16.count)
+        var results: [String] = []
+        // Spelling corrections first, but only if the word is actually misspelled.
+        let bad = spellChecker.rangeOfMisspelledWord(in: word, range: range,
+                                                     startingAt: 0, wrap: false, language: "en_US")
+        if bad.location != NSNotFound,
+           let guesses = spellChecker.guesses(forWordRange: range, in: word, language: "en_US") {
+            results.append(contentsOf: guesses.prefix(3))
+        }
+        // Then predictive completions of the partial word.
+        if let comps = spellChecker.completions(forPartialWordRange: range, in: word, language: "en_US") {
+            results.append(contentsOf: comps.prefix(3))
+        }
+        var seen = Set<String>(); var top: [String] = []
+        for s in results where !seen.contains(s.lowercased()) {
+            seen.insert(s.lowercased()); top.append(s)
+            if top.count == 3 { break }
+        }
+        suggestions = top
+    }
+
+    private func applySuggestion(_ word: String) {
+        let proxy = inputVC.textDocumentProxy
+        let partial = currentPartialWord
+        for _ in 0..<partial.count { proxy.deleteBackward() }
+        proxy.insertText(word + " ")
+        if keyboardTypedText.hasSuffix(partial) {
+            keyboardTypedText.removeLast(partial.count)
+        }
+        keyboardTypedText += word + " "
+        suggestions = []
     }
 
     // Teaching strip — always visible, one line, tap to expand full text
