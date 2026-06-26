@@ -790,22 +790,47 @@ struct KeyboardView: View {
     private func rewrite() {
         let proxy = inputVC.textDocumentProxy
         defaults?.synchronize()
-        let before     = proxy.documentContextBeforeInput ?? ""
-        let typedText  = keyboardTypedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cursorText = before.trimmingCharacters(in: .whitespacesAndNewlines)
-        let shouldUseTypedText = !typedText.isEmpty && (cursorText.isEmpty || keyboardTypedText.hasSuffix(before))
-        let full          = shouldUseTypedText ? typedText  : cursorText
-        let totalToDelete = shouldUseTypedText ? keyboardTypedText.count : before.count
-        guard !full.isEmpty else { showStatus("Type some text first"); return }
-        showStatus("Sending \(full.count) chars\u{2026}")
         isRewriting = true; explanation = ""; showSpiral = false
         previewText = ""; pendingDeleteCount = 0
+        showStatus("Reading your message\u{2026}")
         defaults?.set(true, forKey: "keyboardRewriteInProgress")
         defaults?.synchronize()
         let tone = dictation.humeTone.toneSummary
         let voiceDistressed = dictation.humeTone.isDistressed
         dictation.humeTone.reset()
         Task {
+            // Capture the WHOLE message, not just the window iOS exposes near the
+            // cursor. If the user typed everything here and the cursor is at the
+            // end, our own running copy is complete and we trust it. Otherwise
+            // (pasted text, another keyboard, or cursor mid-text) iOS only shows
+            // the back end, so we walk the document to read the full text.
+            let before = proxy.documentContextBeforeInput ?? ""
+            let after  = proxy.documentContextAfterInput ?? ""
+            let typed  = keyboardTypedText
+            let typedTrim = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+            let haveReliableTyped = !typedTrim.isEmpty && after.isEmpty && typed.hasSuffix(before)
+
+            let full: String
+            let totalToDelete: Int
+            if haveReliableTyped {
+                full = typedTrim
+                totalToDelete = typed.count
+            } else {
+                let scanned = await captureFullDocument(proxy)
+                full = scanned.trimmingCharacters(in: .whitespacesAndNewlines)
+                totalToDelete = scanned.count
+            }
+
+            guard !full.isEmpty else {
+                await MainActor.run {
+                    isRewriting = false
+                    defaults?.set(false, forKey: "keyboardRewriteInProgress")
+                    defaults?.synchronize()
+                    showStatus("Type some text first")
+                }
+                return
+            }
+            await MainActor.run { showStatus("Sending \(full.count) chars\u{2026}") }
             do {
                 let result = try await callServer(text: full, tone: tone)
                 var note = result.explanation.isEmpty ? "Rewritten at \(level) for \(activeProfileLabel)." : result.explanation
@@ -845,6 +870,54 @@ struct KeyboardView: View {
                 }
             }
         }
+    }
+
+    /// iOS hands a keyboard only the text near the cursor — for a long message
+    /// that's just the back end, which is why a rewrite could miss the start.
+    /// This reads the WHOLE field: move the cursor to the end, then read backward
+    /// window by window until no new text appears. Non-destructive (it only reads
+    /// and moves the cursor); the result is shown as a preview before anything is
+    /// replaced, so a bad capture can never silently overwrite the message.
+    private func captureFullDocument(_ proxy: UITextDocumentProxy) async -> String {
+        func readAfter()  async -> String { await MainActor.run { proxy.documentContextAfterInput  ?? "" } }
+        func readBefore() async -> String { await MainActor.run { proxy.documentContextBeforeInput ?? "" } }
+        func move(_ n: Int) async {
+            guard n != 0 else { return }
+            await MainActor.run { proxy.adjustTextPosition(byCharacterOffset: n) }
+            try? await Task.sleep(nanoseconds: 12_000_000)
+        }
+
+        // 1) Move to the very end so every character is "before" the cursor.
+        var steps = 0
+        var after = await readAfter()
+        while !after.isEmpty && steps < 400 {
+            await move(after.count)
+            after = await readAfter()
+            steps += 1
+        }
+        // 2) Read backward, prepending each new window. Stop when the window
+        //    stops changing (some apps cap context and won't scroll) so we can't
+        //    loop forever or duplicate text.
+        var full = ""
+        var lastWindow = ""
+        steps = 0
+        while steps < 800 {
+            let window = await readBefore()
+            if window.isEmpty || window == lastWindow { break }
+            full = window + full
+            lastWindow = window
+            await move(-window.count)
+            steps += 1
+        }
+        // 3) Put the cursor back at the end for the delete/replace step.
+        steps = 0
+        after = await readAfter()
+        while !after.isEmpty && steps < 400 {
+            await move(after.count)
+            after = await readAfter()
+            steps += 1
+        }
+        return full
     }
 
     private func deleteBackwardChunked(proxy: UITextDocumentProxy, count: Int) async {
