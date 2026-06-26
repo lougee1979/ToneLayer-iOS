@@ -202,7 +202,7 @@ struct KeyboardView: View {
         }
         .background(Color(red: 0.945, green: 0.937, blue: 0.984))
         .preferredColorScheme(.light)
-        .onAppear { loadSettings() }
+        .onAppear { loadSettings(); updateSuggestions() }
         .onChange(of: keyboardTypedText) { _, _ in updateSuggestions() }
     }
 
@@ -311,7 +311,11 @@ struct KeyboardView: View {
 
     private func updateSuggestions() {
         let word = currentPartialWord
-        guard word.count >= 1 else { suggestions = []; return }
+        guard !word.isEmpty else {
+            // Not mid-word: predict the NEXT word so the bar is never empty.
+            suggestions = nextWordSuggestions()
+            return
+        }
         let range = NSRange(location: 0, length: word.utf16.count)
         var results: [String] = []
         // Spelling corrections first, but only if the word is actually misspelled.
@@ -330,7 +334,27 @@ struct KeyboardView: View {
             seen.insert(s.lowercased()); top.append(s)
             if top.count == 3 { break }
         }
-        suggestions = top
+        // Never leave the bar empty — fall back to common words so it stays full.
+        suggestions = top.isEmpty ? Self.commonWords : top
+    }
+
+    /// Predicts likely next words when the user isn't mid-word, so the bar
+    /// always has something in it (like Apple's). Uses a small built-in
+    /// word-pairs table — entirely on-device, nothing leaves the phone.
+    private func nextWordSuggestions() -> [String] {
+        let before  = inputVC.textDocumentProxy.documentContextBeforeInput ?? ""
+        let trimmed = before.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty || trimmed.hasSuffix(".") || trimmed.hasSuffix("!")
+            || trimmed.hasSuffix("?") || trimmed.hasSuffix("\n") {
+            return Self.sentenceStarters
+        }
+        let lastWord = String(trimmed.split { $0 == " " || $0 == "\n" }.last ?? "")
+            .lowercased()
+            .trimmingCharacters(in: CharacterSet(charactersIn: ",;:\"'"))
+        if let followers = Self.nextWordTable[lastWord], !followers.isEmpty {
+            return Array(followers.prefix(3))
+        }
+        return Self.commonWords
     }
 
     private func applySuggestion(_ word: String) {
@@ -342,8 +366,45 @@ struct KeyboardView: View {
             keyboardTypedText.removeLast(partial.count)
         }
         keyboardTypedText += word + " "
-        suggestions = []
+        // onChange(keyboardTypedText) will refill the bar with next-word guesses.
     }
+
+    // Words shown at the start of a sentence, and a safe always-available fill.
+    static let sentenceStarters = ["I", "The", "Thanks"]
+    static let commonWords      = ["the", "to", "and"]
+
+    // Small on-device next-word table: previous word -> likely follow-ups.
+    // Crude but private and instant; a learned/on-device-AI model can replace it.
+    static let nextWordTable: [String: [String]] = [
+        "i": ["am", "have", "think"], "i'm": ["not", "going", "sorry"],
+        "you": ["are", "can", "should"], "to": ["the", "be", "do"],
+        "the": ["same", "best", "first"], "it": ["is", "was", "would"],
+        "is": ["a", "the", "not"], "are": ["you", "not", "going"],
+        "have": ["to", "a", "been"], "had": ["to", "a", "been"],
+        "thanks": ["for", "so", "again"], "thank": ["you", "you,", "goodness"],
+        "can": ["you", "we", "i"], "do": ["you", "not", "it"],
+        "we": ["can", "should", "are"], "this": ["is", "was", "week"],
+        "that": ["is", "would", "i"], "of": ["the", "course", "my"],
+        "for": ["the", "you", "me"], "and": ["i", "the", "then"],
+        "a": ["lot", "little", "few"], "my": ["own", "time", "head"],
+        "be": ["able", "there", "okay"], "not": ["sure", "going", "really"],
+        "going": ["to", "on", "back"], "want": ["to", "you", "a"],
+        "need": ["to", "a", "you"], "let": ["me", "you", "us"],
+        "me": ["know", "to", "a"], "so": ["much", "i", "that"],
+        "sorry": ["for", "i", "about"], "please": ["let", "send", "give"],
+        "just": ["wanted", "a", "to"], "wanted": ["to", "you"],
+        "feel": ["like", "free", "better"], "good": ["morning", "to", "luck"],
+        "how": ["are", "is", "do"], "what": ["is", "do", "i"],
+        "when": ["you", "i", "is"], "where": ["are", "is", "you"],
+        "with": ["the", "you", "me"], "your": ["time", "help", "message"],
+        "about": ["the", "it", "that"], "would": ["be", "you", "like"],
+        "could": ["you", "be", "we"], "should": ["be", "i", "we"],
+        "will": ["be", "you", "do"], "at": ["the", "all", "least"],
+        "in": ["the", "a", "my"], "on": ["the", "my", "it"],
+        "hope": ["you", "that", "this"], "hey": ["there", "i", "how"],
+        "hi": ["there", "how", "i"], "no": ["problem", "worries", "i"],
+        "yes": ["i", "that", "of"], "okay": ["i", "sounds", "thanks"],
+    ]
 
     // Teaching strip — always visible, one line, tap to expand full text
     private var teachingStrip: some View {
