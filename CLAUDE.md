@@ -27,3 +27,27 @@ These two color-coded folders are the ONLY dev folders. Always.
 - Prefer the simplest possible instructions. One small step at a time.
 
 The user has stated this repeatedly and clearly. Honor it without exception.
+
+## SECURITY/PRIVACY RULE — FROZEN. ALWAYS DO THIS.
+
+The user's text is private and sensitive. ToneLayer and Clarity rewrite
+people's real messages — often emotional, personal, or high-stakes — and
+sending that text to an AI service is the single biggest security/privacy
+risk in this product.
+
+ALWAYS, without being asked:
+- Treat every user message as sensitive data. Minimize what leaves the
+  device, never log or store raw message content on the server, and never
+  send more than is needed to do the rewrite/decode.
+- Before designing or changing ANY feature, ask "does this expose the
+  user's private text?" — and if it does, say so plainly to the user in
+  simple terms BEFORE building it, not after.
+- Prefer the most private option available (on-device processing, no
+  retention, encryption in transit and at rest) even when a less private
+  option is easier.
+- Never quietly add anything that sends, copies, logs, or stores the
+  user's text somewhere new. Flag it first.
+- Keep secrets (API keys, app tokens) OUT of the source code and out of
+  git. They belong in environment variables / build config only.
+
+Security of the user's words is a top priority, every time, by default.
