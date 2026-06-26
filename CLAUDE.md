@@ -63,3 +63,21 @@ ALWAYS, without being asked:
   git. They belong in environment variables / build config only.
 
 Security of the user's words is a top priority, every time, by default.
+
+### SECURE vs FULL mode — the user always chooses.
+
+Offer two modes and let the USER pick which one they want:
+- **Secure mode:** everything happens on-device. Nothing leaves the phone —
+  no server, no Claude, no Hume voice analysis. Authenticity comes from
+  on-device learning of the user's own writing style.
+- **Full mode:** off-device (server + Claude, plus voice-tone analysis) for
+  maximum capability and voice-based authenticity. More capable, less private.
+
+Rules for these modes:
+- Default to the SECURE (private) option.
+- ALWAYS show the user, on every rewrite, which mode actually ran — whether
+  it stayed on the phone or was sent off the phone.
+- NEVER silently move a user from secure to off-device. Going off-device is
+  always a clear, deliberate, consented choice.
+- Voice-tone (Hume) is inherently cloud-based, so it belongs only to Full
+  mode and must never run in Secure mode.
