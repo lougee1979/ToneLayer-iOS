@@ -94,13 +94,25 @@ final class DictationManager: ObservableObject {
     }
 }
 
+// MARK: - Keyboard metrics (rotation-safe width)
+
+/// The keyboard's current width, published from the view controller. A
+/// background GeometryReader can miss the landscape->portrait shrink (leaving
+/// the keys stuck at the larger landscape size); the view controller always
+/// gets the layout/rotation callbacks, so it is the authoritative source.
+final class KeyboardMetrics: ObservableObject {
+    @Published var width: CGFloat = 0
+}
+
 // MARK: - Principal class
 
 class KeyboardViewController: UIInputViewController {
 
+    private let metrics = KeyboardMetrics()
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        let host = UIHostingController(rootView: KeyboardView(inputVC: self))
+        let host = UIHostingController(rootView: KeyboardView(inputVC: self, metrics: metrics))
         host.view.backgroundColor = .clear
         addChild(host)
         view.addSubview(host.view)
@@ -114,9 +126,15 @@ class KeyboardViewController: UIInputViewController {
         NSLayoutConstraint.activate([top, bot, lead, trail])
     }
 
-    // Custom keyboards don't always re-layout their SwiftUI content when the
-    // device rotates, leaving the old (portrait) key sizing on screen. Force
-    // a layout pass so the GeometryReader-driven sizing recalculates.
+    // Publish the real view width on every layout pass. This fires after a
+    // rotation settles (both directions), so the SwiftUI key sizing always
+    // recalculates and never gets stuck at the landscape size.
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        let w = view.bounds.width
+        if w > 0 && abs(metrics.width - w) > 0.5 { metrics.width = w }
+    }
+
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
         coordinator.animate(alongsideTransition: { _ in
@@ -130,6 +148,7 @@ class KeyboardViewController: UIInputViewController {
 
 struct KeyboardView: View {
     let inputVC: UIInputViewController
+    @ObservedObject var metrics: KeyboardMetrics
 
     private let serverURL  = "https://tonelayer-server-production.up.railway.app/rewrite"
     private let appToken   = "d731136d97cdd46453e7581465537e0d9aee811512b885c2"
@@ -204,6 +223,7 @@ struct KeyboardView: View {
         .preferredColorScheme(.light)
         .onAppear { loadSettings(); updateSuggestions() }
         .onChange(of: keyboardTypedText) { _, _ in updateSuggestions() }
+        .onReceive(metrics.$width) { w in if w > 0 { keyboardWidth = w } }
     }
 
     private var agreementRequiredView: some View {
@@ -663,13 +683,6 @@ struct KeyboardView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear { keyboardWidth = geo.size.width }
-                    .onChange(of: geo.size.width) { _, newWidth in keyboardWidth = newWidth }
-            }
-        )
     }
 
     private var centerKeyRows: some View {
@@ -863,9 +876,8 @@ struct KeyboardView: View {
             Text("Your text has some patterns that might land differently than you intend.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
             HStack(spacing: 8) {
-                chipButton("As-is", primary: false) { spiralOriginal = ""; spiralOriginalCount = 0; showSpiral = false }
-                chipButton("Grammar", primary: false) { applySpiral(spiralGrammar.isEmpty ? spiralOriginal : spiralGrammar) }
-                chipButton("NT", primary: true) { applySpiral(spiralNT) }
+                chipButton("Keep as-is", primary: false) { spiralOriginal = ""; spiralOriginalCount = 0; withAnimation { showSpiral = false } }
+                chipButton("Show me the rewrite", primary: true) { showSpiralPreview() }
             }
             if !teachingBody.isEmpty {
                 HStack(alignment: .top, spacing: 6) {
@@ -1078,6 +1090,17 @@ struct KeyboardView: View {
             index = next
             try? await Task.sleep(nanoseconds: 5_000_000)
         }
+    }
+
+    /// Move from the spiral pause into the normal preview, so the user SEES the
+    /// rewrite and approves it (Use NT / Grammar / keep Original) instead of the
+    /// text being replaced the moment they choose.
+    private func showSpiralPreview() {
+        previewGrammar     = spiralGrammar
+        pendingDeleteCount = spiralOriginalCount
+        previewText        = spiralNT
+        spiralOriginal = ""; spiralOriginalCount = 0
+        withAnimation { showSpiral = false }
     }
 
     private func applySpiral(_ text: String) {
