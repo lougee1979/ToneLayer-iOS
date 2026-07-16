@@ -4,7 +4,8 @@
 
 import Foundation
 import Combine
-import AVFoundation
+@preconcurrency import AVFoundation
+import ToneLayerCore
 
 // Lightweight Hume EVI listener that piggybacks on the keyboard's existing
 // dictation audio tap. It streams mic audio to Hume for prosody (vocal tone)
@@ -15,8 +16,8 @@ final class HumeToneClient: NSObject, ObservableObject, URLSessionWebSocketDeleg
     @Published var topEmotions: [(name: String, score: Double)] = []
     @Published var isDistressed = false
 
-    private let apiKey    = "iGJur1J59jimvanwNivAtw1tCyUkEKZA77j9MUSHTApvUwUN"
-    private let secretKey = "IMcIJVkuFypeG3x3LQHOy1NmRvZYoRTg1EGVAyodQNCPQ6GGO8HW9TEG0098az2Z"
+    private let apiKey    = Secrets.humeApiKey
+    private let secretKey = Secrets.humeSecretKey
     private let sendSampleRate: Double = 48_000
 
     private var webSocketTask: URLSessionWebSocketTask?
@@ -44,6 +45,12 @@ final class HumeToneClient: NSObject, ObservableObject, URLSessionWebSocketDeleg
             .prefix(3)
             .map { "\($0.name) \(Int($0.score * 100))%" }
             .joined(separator: ", ")
+    }
+
+    /// Short label for the single strongest detected emotion, e.g. "Anxiety (45%)".
+    var topEmotionLabel: String {
+        guard let top = topEmotions.first else { return "" }
+        return "\(top.name) (\(Int(top.score * 100))%)"
     }
 
     func reset() {

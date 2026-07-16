@@ -7,6 +7,7 @@ import SwiftUI
 import Combine
 import Speech
 import AVFoundation
+import ToneLayerCore
 
 // MARK: - Brand colors
 
@@ -25,6 +26,7 @@ extension Color {
 final class DictationManager: ObservableObject {
     @Published var isRecording = false
     @Published var partialText = ""
+    @Published var lastToneSummary = ""
     let humeTone = HumeToneClient()
 
     private let recognizer = SFSpeechRecognizer(locale: .current)
@@ -89,6 +91,7 @@ final class DictationManager: ObservableObject {
         request = nil
         task = nil
         isRecording = false
+        lastToneSummary = humeTone.topEmotionLabel
         humeTone.disconnect()
         if !text.isEmpty { onInsert(text); partialText = "" }
     }
@@ -106,12 +109,75 @@ final class KeyboardMetrics: ObservableObject {
 
 // MARK: - Principal class
 
-class KeyboardViewController: UIInputViewController {
+class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedback {
+
+    private var heightConstraint: NSLayoutConstraint?
+    private var isContentExpanded = false
+
+    /// Fires whenever the document's text changes for any reason — typed on
+    /// this keyboard, pasted, autocorrected, or edited by the host app.
+    /// `KeyboardView` uses this to catch text that arrived some way other
+    /// than its own keys (e.g. the system paste bubble), which its own
+    /// tracked buffer never sees.
+    var onTextDidChange: (() -> Void)?
+
+    override func textDidChange(_ textInput: UITextInput?) {
+        super.textDidChange(textInput)
+        onTextDidChange?()
+    }
+
+    /// Third-party keyboards must opt in to the standard system key-click
+    /// sound; Apple's own keyboard has it on by default.
+    var enableInputClicksWhenVisible: Bool { true }
+
+    /// Portrait needs room for the teaching strip, action bar, suggestion
+    /// bar, and 4 rows of keys without clipping. Landscape has far less
+    /// screen height to work with, so the SwiftUI content also shrinks
+    /// (smaller keys, hidden teaching strip) to match a smaller request —
+    /// otherwise the keyboard ends up consuming nearly the whole screen.
+    private func requestedHeight(isLandscape: Bool) -> CGFloat {
+        let base: CGFloat
+        if UIDevice.current.userInterfaceIdiom == .pad { base = 340 }
+        else { base = isLandscape ? 250 : 350 }
+        // The rewrite-result screen keeps the on-screen keys visible
+        // (needed to type into the "Refine" field, which — being a text
+        // field inside a keyboard extension — can never summon a system
+        // keyboard of its own) on top of the rewrite text, its
+        // explanation, and three choice buttons. That's more content than
+        // the base height budget allows, so it gets extra room while that
+        // screen is showing.
+        return isContentExpanded ? base + 120 : base
+    }
+
+    /// Called by `KeyboardView` whenever the rewrite-result screen (with
+    /// its rewrite text + explanation + keyboard all on one screen) opens
+    /// or closes, so the keyboard's own height can grow to fit it instead
+    /// of squeezing the rewrite text down to nothing.
+    func setContentExpanded(_ expanded: Bool) {
+        guard isContentExpanded != expanded else { return }
+        isContentExpanded = expanded
+        let isLandscape = view.bounds.width > view.bounds.height
+        heightConstraint?.constant = requestedHeight(isLandscape: isLandscape)
+    }
 
     private let metrics = KeyboardMetrics()
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        // KeyboardView forces `.preferredColorScheme(.light)`, but that only
+        // affects SwiftUI-native colors — raw UIColor-based colors (e.g.
+        // .systemGray4, .tertiaryLabel) still follow the real system Dark
+        // Mode setting unless the UIKit trait itself is overridden here too,
+        // which is what made dark mode unreadable (light-mode text on a
+        // dark-styled label sitting on the forced-light background).
+        overrideUserInterfaceStyle = .light
+
+        let isLandscape = view.bounds.width > view.bounds.height
+        let heightConstraint = view.heightAnchor.constraint(equalToConstant: requestedHeight(isLandscape: isLandscape))
+        heightConstraint.priority = UILayoutPriority(999)
+        heightConstraint.isActive = true
+        self.heightConstraint = heightConstraint
+
         let host = UIHostingController(rootView: KeyboardView(inputVC: self, metrics: metrics))
         host.view.backgroundColor = .clear
         addChild(host)
@@ -122,7 +188,6 @@ class KeyboardViewController: UIInputViewController {
         let bot   = host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         let lead  = host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor)
         let trail = host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor)
-        [top, bot].forEach { $0.priority = .defaultHigh }
         NSLayoutConstraint.activate([top, bot, lead, trail])
     }
 
@@ -135,8 +200,14 @@ class KeyboardViewController: UIInputViewController {
         if w > 0 && abs(metrics.width - w) > 0.5 { metrics.width = w }
     }
 
+    // Custom keyboards don't always re-layout their SwiftUI content when the
+    // device rotates, leaving the old (portrait) key sizing on screen. Force
+    // a layout pass so the GeometryReader-driven sizing recalculates, and
+    // update the requested height to match the new orientation.
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
+        let isLandscape = size.width > size.height
+        heightConstraint?.constant = requestedHeight(isLandscape: isLandscape)
         coordinator.animate(alongsideTransition: { _ in
             self.view.setNeedsLayout()
             self.view.layoutIfNeeded()
@@ -147,19 +218,21 @@ class KeyboardViewController: UIInputViewController {
 // MARK: - SwiftUI keyboard view
 
 struct KeyboardView: View {
-    let inputVC: UIInputViewController
+    let inputVC: KeyboardViewController
     @ObservedObject var metrics: KeyboardMetrics
 
-    private let serverURL  = "https://tonelayer-server-production.up.railway.app/rewrite"
-    private let appToken   = "d731136d97cdd46453e7581465537e0d9aee811512b885c2"
-    private let appGroupID = "group.com.alden.tonelayer"
-    private var defaults: UserDefaults? { UserDefaults(suiteName: appGroupID) }
+    private var defaults: UserDefaults? { UserDefaults(suiteName: AppConfig.appGroupID) }
+    private let router = RewriteRouter()
+    private let refineClient = RefineClient()
+    private let redactor = PIIRedactor()
 
     @State private var profileADHD    = false
     @State private var profileAutism  = true
     @State private var profileAUDHD   = false
     @State private var profilePTSD    = false
     @State private var profileCPTSD   = false
+    @State private var profileDyslexic = false
+    @State private var pressedKeyTitle: String? = nil
     @State private var level             = "Medium"
     @State private var isRewriting       = false
     @State private var status            = ""
@@ -168,11 +241,21 @@ struct KeyboardView: View {
     @State private var spiralEnabled     = true
     @State private var isShifted         = false
     @State private var isNumbers         = false
+    @State private var isSymbols         = false
+    @State private var capsLocked        = false
+    @State private var lastShiftTap: Date? = nil
+    @State private var deleteTimer: Timer? = nil
+    @State private var spaceDragAccumulated: CGFloat = 0
     @State private var keyboardTypedText = ""
     @State private var keyboardWidth      = CGFloat(0)
+    @State private var keyboardHeight     = CGFloat(0)
     @State private var previewText        = ""
     @State private var previewGrammar     = ""
+    @State private var previewSource: RewriteSource = .cloud
     @State private var pendingDeleteCount = 0
+    @State private var refineInstruction  = ""
+    @State private var refineTone         = ""
+    @State private var isRefining         = false
     @State private var teachingBody       = ""
     @State private var showTeachingExpanded = false
     @State private var showSpiral          = false
@@ -181,13 +264,25 @@ struct KeyboardView: View {
     @State private var spiralOriginal      = ""
     @State private var spiralOriginalCount = 0
     @State private var isAnalyzing         = false
-    @StateObject private var dictation     = DictationManager()
-    @State private var analyzeMode: AnalyzeMode = .narc
-
     // On-device predictive text + spelling suggestions. Apple's UITextChecker
     // runs entirely on the phone, so nothing you type leaves the device for this.
     @State private var suggestions: [String] = []
+    @StateObject private var dictation     = DictationManager()
+    private let textChecker = UITextChecker()
     private let spellChecker = UITextChecker()
+    private let hapticGenerator = UIImpactFeedbackGenerator(style: .light)
+    private let autocorrectTriggers: Set<String> = [" ", "\n", ".", ",", "!", "?", ";", ":"]
+    private let accentVariants: [String: [String]] = [
+        "a": ["à", "á", "â", "ä", "æ", "ã", "å"],
+        "e": ["è", "é", "ê", "ë"],
+        "i": ["ì", "í", "î", "ï"],
+        "o": ["ò", "ó", "ô", "ö", "õ", "ø"],
+        "u": ["ù", "ú", "û", "ü"],
+        "n": ["ñ"],
+        "c": ["ç"],
+        "s": ["ß"],
+        "y": ["ÿ"]
+    ]
 
     private var activeProfileLabel: String {
         var p: [String] = []
@@ -199,6 +294,7 @@ struct KeyboardView: View {
         }
         if profilePTSD   { p.append("PTSD") }
         if profileCPTSD  { p.append("CPTSD") }
+        if profileDyslexic { p.append("Dyslexic") }
         return p.isEmpty ? "General ND" : p.joined(separator: "+")
     }
 
@@ -219,11 +315,35 @@ struct KeyboardView: View {
                 mainPanel
             }
         }
-        .background(Color(red: 0.945, green: 0.937, blue: 0.984))
+        .background(.ultraThinMaterial)
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { keyboardHeight = geo.size.height }
+                    .onChange(of: geo.size.height) { _, newHeight in keyboardHeight = newHeight }
+            }
+        )
         .preferredColorScheme(.light)
-        .onAppear { loadSettings(); updateSuggestions() }
+        .onAppear {
+            loadSettings(); seedTypedTextFromProxy(); updateAutoCapitalization(); updateSuggestions()
+            // Deferred to the next runloop turn so it runs after this
+            // keystroke's own `keyboardTypedText += s` has already executed
+            // (textDidChange can fire synchronously mid-insertText/
+            // deleteBackward) — otherwise the very first keystroke's
+            // buffer-still-empty moment gets misread as "external text
+            // arrived" and reseeded from a proxy context that's just that
+            // one character, corrupting the buffer for the whole session.
+            inputVC.onTextDidChange = { DispatchQueue.main.async { seedTypedTextFromProxy() } }
+            hapticGenerator.prepare()
+        }
         .onChange(of: keyboardTypedText) { _, _ in updateSuggestions() }
         .onReceive(metrics.$width) { w in if w > 0 { keyboardWidth = w } }
+        .onChange(of: dictation.lastToneSummary) { _, newValue in
+            if !newValue.isEmpty { showStatus("Sounded: " + newValue) }
+        }
+        .onChange(of: previewText) { _, newValue in
+            inputVC.setContentExpanded(!newValue.isEmpty)
+        }
     }
 
     private var agreementRequiredView: some View {
@@ -256,14 +376,11 @@ struct KeyboardView: View {
                 Text(levelKeyTitle(level)).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
             }
             Spacer()
-            HStack(spacing: 2) {
-                Button { inputVC.advanceToNextInputMode() } label: {
-                    Image(systemName: "globe").font(.system(size: 17)).foregroundStyle(.secondary).frame(width: 36, height: 36)
-                }
-                Button { inputVC.dismissKeyboard() } label: {
-                    Image(systemName: "keyboard.chevron.compact.down").font(.system(size: 17)).foregroundStyle(.secondary).frame(width: 36, height: 36)
-                }
+            Button { inputVC.dismissKeyboard() } label: {
+                Image(systemName: "keyboard.chevron.compact.down").font(.system(size: 17)).foregroundStyle(.secondary).frame(width: 36, height: 36)
             }
+            .accessibilityLabel("Close keyboard")
+            .accessibilityHint("Hides the keyboard and returns to the app.")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 2)
@@ -271,13 +388,13 @@ struct KeyboardView: View {
 
     private var mainPanel: some View {
         VStack(spacing: 2) {
-            teachingStrip
+            if !(isLandscape && !isPad) {
+                teachingStrip
+            }
             if !explanation.isEmpty {
                 analyzeResult
             }
-            if sidePanelWidth < 30 {
-                actionBar
-            }
+            actionBar
             // Status / dictation line — ALWAYS rendered at a fixed height so the
             // keys never shift up or down when a message appears or clears.
             Text(dictation.isRecording && !dictation.partialText.isEmpty
@@ -292,33 +409,6 @@ struct KeyboardView: View {
             keyboardSection.padding(.horizontal, 4).padding(.bottom, 4)
         }
         .padding(.top, 2)
-    }
-
-    // Fixed, stationary strip of up to three on-device suggestions for the word
-    // being typed. Stays the same height even when empty so it never jumps.
-    private var suggestionBar: some View {
-        HStack(spacing: 6) {
-            if suggestions.isEmpty {
-                Color.clear
-            } else {
-                ForEach(suggestions, id: \.self) { s in
-                    Button { applySuggestion(s) } label: {
-                        Text(s)
-                            .font(.system(size: 15))
-                            .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 7)
-                            .background(Color(UIColor.systemBackground).opacity(0.9))
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .frame(height: 38)
-        .padding(.horizontal, 6)
     }
 
     // The run of word characters immediately before the cursor — i.e. the word
@@ -355,7 +445,7 @@ struct KeyboardView: View {
             if top.count == 3 { break }
         }
         // Never leave the bar empty — fall back to common words so it stays full.
-        suggestions = top.isEmpty ? Self.commonWords : top
+        suggestions = (top.isEmpty ? Self.commonWords : top).map { matchCapitalization(of: word, to: $0) }
     }
 
     /// Predicts likely next words when the user isn't mid-word, so the bar
@@ -375,18 +465,6 @@ struct KeyboardView: View {
             return Array(followers.prefix(3))
         }
         return Self.commonWords
-    }
-
-    private func applySuggestion(_ word: String) {
-        let proxy = inputVC.textDocumentProxy
-        let partial = currentPartialWord
-        for _ in 0..<partial.count { proxy.deleteBackward() }
-        proxy.insertText(word + " ")
-        if keyboardTypedText.hasSuffix(partial) {
-            keyboardTypedText.removeLast(partial.count)
-        }
-        keyboardTypedText += word + " "
-        // onChange(keyboardTypedText) will refill the bar with next-word guesses.
     }
 
     // Words shown at the start of a sentence, and a safe always-available fill.
@@ -448,11 +526,12 @@ struct KeyboardView: View {
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(Color(UIColor.systemBackground).opacity(0.8))
-            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 6)
+        .accessibilityLabel(teachingBody.isEmpty ? "Teaching note" : "Teaching note: \(teachingBody)")
+        .accessibilityHint(teachingBody.isEmpty ? "Nothing to show yet. Tap Rewrite first." : "Opens the full explanation.")
     }
 
     // Expanded teaching view — replaces main panel, scrollable, full text
@@ -474,6 +553,8 @@ struct KeyboardView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Close teaching note")
+                .accessibilityHint("Returns to the keyboard.")
             }
             ScrollView(.vertical, showsIndicators: true) {
                 Text(teachingBody)
@@ -497,46 +578,158 @@ struct KeyboardView: View {
     // ready, showing the explanation alongside the rewrite text and three
     // choices: keep the original, use a grammar-only fix, or use the NT rewrite.
     private var rewriteResultView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("\u{2728}  Here's the rewrite \u{2014} want to use it?")
-                .font(.system(size: 13, weight: .bold))
-            ScrollView(.vertical, showsIndicators: true) {
-                Text(previewText)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxHeight: 140)
-            HStack(spacing: 8) {
-                chipButton("Original", primary: false) {
-                    previewText = ""; previewGrammar = ""; pendingDeleteCount = 0
-                    showStatus("Kept your original")
-                }
-                chipButton("Grammar", primary: false) {
-                    applyPreview(previewGrammar.isEmpty ? previewText : previewGrammar)
-                }
-                chipButton("Use NT \u{2713}", primary: true) { applyPreview(previewText) }
-            }
-            if !teachingBody.isEmpty {
-                HStack(alignment: .top, spacing: 6) {
-                    Image(systemName: "lightbulb.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.brandVioletDark.opacity(0.8))
-                    Text(teachingBody)
-                        .font(.system(size: 11))
-                        .italic()
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("\u{2728}  Here's the rewrite \u{2014} want to use it?")
+                        .font(.system(size: 13, weight: .bold))
+                    Spacer()
+                    Text(previewSource == .onDevice ? "On-device" : "Precise \u{2014} via Claude")
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(previewText)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if !teachingBody.isEmpty {
+                            HStack(alignment: .top, spacing: 6) {
+                                Image(systemName: "lightbulb.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(Color.brandVioletDark.opacity(0.8))
+                                Text(teachingBody)
+                                    .font(.system(size: 11))
+                                    .italic()
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 110)
+                HStack(spacing: 8) {
+                    chipButton("Original", primary: false) {
+                        previewText = ""; previewGrammar = ""; pendingDeleteCount = 0
+                        showStatus("Kept your original")
+                    }
+                    chipButton("Grammar", primary: false) {
+                        applyPreview(previewGrammar.isEmpty ? previewText : previewGrammar)
+                    }
+                    chipButton("Use NT \u{2713}", primary: true) { applyPreview(previewText) }
+                }
+                refineRow
+                if !status.isEmpty {
+                    Text(status)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .lineLimit(2)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(red: 0.91, green: 0.98, blue: 0.95))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.brandVioletDark.opacity(0.4), lineWidth: 1))
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            // A custom keyboard can't summon a system keyboard for the refine
+            // field above (no such thing as a keyboard for a keyboard), so
+            // this view keeps its own on-screen keys visible here and typing
+            // routes into refineInstruction instead of the host app's text
+            // field — see the `!previewText.isEmpty` branch in
+            // insertCharacter/deleteBackward.
+            keyboardSection.padding(.horizontal, 4).padding(.bottom, 4)
+        }
+    }
+
+    /// Not quite right? tell it what to fix — always shown alongside a
+    /// rewrite result, on-device or cloud. A correction always goes to the
+    /// AI, never handled locally by pattern-matching.
+    private var refineRow: some View {
+        HStack(spacing: 6) {
+            HStack(spacing: 0) {
+                if refineInstruction.isEmpty {
+                    Text("Not quite right? Tell it what to fix\u{2026}")
+                        .foregroundStyle(Color(UIColor.tertiaryLabel))
+                } else {
+                    Text(refineInstruction)
+                        .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+                }
+                Spacer(minLength: 0)
+            }
+                .font(.system(size: 12))
+                .padding(.horizontal, 8).padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            Button {
+                dictation.toggle { text in
+                    refineInstruction += text
+                    refineTone = dictation.humeTone.toneSummary
+                }
+            } label: {
+                Image(systemName: dictation.isRecording ? "stop.circle.fill" : "mic.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(dictation.isRecording ? Color.red : Color.brandViolet)
+                    .frame(width: 26, height: 26)
+                    .glassEffect(.regular.tint((dictation.isRecording ? Color.red : Color.brandViolet).opacity(0.35)).interactive(), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .accessibilityLabel(dictation.isRecording ? "Stop recording" : "Speak your correction")
+            .accessibilityHint("Lets you say what to fix instead of typing it — your tone while speaking helps the correction land right.")
+            Button {
+                refine()
+            } label: {
+                Group {
+                    if isRefining { ProgressView().scaleEffect(0.55).tint(.white) }
+                    else { Text("Refine").font(.system(size: 11, weight: .semibold)) }
+                }
+                .frame(width: 52, height: 26)
+                .background(Color.brandVioletDark)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .disabled(isRefining || refineInstruction.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+    }
+
+    private func refine() {
+        let instruction = refineInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !instruction.isEmpty, !previewText.isEmpty else { return }
+        isRefining = true
+        let tone = refineTone
+        Task {
+            do {
+                let result = try await refineClient.refine(
+                    previousRewrite: previewText,
+                    instruction: instruction,
+                    profile: activeProfileLabel,
+                    level: level,
+                    mode: "tonelayer",
+                    tone: tone
+                )
+                await MainActor.run {
+                    isRefining = false
+                    refineInstruction = ""
+                    refineTone = ""
+                    previewGrammar = result.grammarOnly
+                    previewSource = result.source
+                    if !result.explanation.isEmpty {
+                        teachingBody = result.explanation
+                        defaults?.set(result.explanation, forKey: "lastTeachingNote")
+                    }
+                    withAnimation { previewText = result.rewrite }
+                }
+            } catch {
+                await MainActor.run {
+                    isRefining = false
+                    showStatus(error.localizedDescription)
                 }
             }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(red: 0.91, green: 0.98, blue: 0.95))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.brandVioletDark.opacity(0.4), lineWidth: 1))
-        .padding(.horizontal, 12).padding(.vertical, 8)
     }
 
     private var analyzeResult: some View {
@@ -548,6 +741,8 @@ struct KeyboardView: View {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary).font(.system(size: 14))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Close analysis")
+                .accessibilityHint("Dismisses this analysis result.")
             }
             ScrollView(.vertical, showsIndicators: true) {
                 Text(explanation)
@@ -577,39 +772,38 @@ struct KeyboardView: View {
                         .font(.system(size: 11, weight: level == l ? .bold : .semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 5)
-                        .background(level == l ? Color.brandVioletDark : Color(UIColor.systemGray4))
                         .foregroundStyle(level == l ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .glassEffect(level == l ? .regular.tint(Color.brandVioletDark).interactive() : .regular.interactive(), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("\(l) rewrite strength")
+                .accessibilityHint(level == l ? "Currently selected." : "Sets how strongly your text gets rewritten.")
             }
             Divider().frame(height: 20)
             Button(action: rewrite) {
-                HStack(spacing: 3) {
+                Group {
                     if isRewriting { ProgressView().scaleEffect(0.6).tint(.white) }
-                    else { Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 11)) }
-                    Text(isRewriting ? "…" : "Rewrite")
-                        .font(.system(size: 11, weight: .bold)).lineLimit(1)
+                    else { Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 13)) }
                 }
-                .padding(.horizontal, 7).padding(.vertical, 5)
-                .background(isRewriting ? Color.brandVioletDark.opacity(0.55) : Color.brandVioletDark)
+                .frame(width: 34, height: 28)
                 .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .glassEffect(.regular.tint(Color.brandVioletDark.opacity(isRewriting ? 0.55 : 1)).interactive(), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .disabled(isRewriting || isAnalyzing)
+            .accessibilityLabel(isRewriting ? "Rewriting" : "Rewrite")
+            .accessibilityHint("Rewrites your text to sound more neurotypical.")
             Button(action: analyzeClipboard) {
-                HStack(spacing: 3) {
+                Group {
                     if isAnalyzing { ProgressView().scaleEffect(0.55).tint(.white) }
-                    else { Image(systemName: "magnifyingglass").font(.system(size: 11)) }
-                    Text(isAnalyzing ? "…" : "Analyze")
-                        .font(.system(size: 11, weight: .bold)).lineLimit(1)
+                    else { Image(systemName: "magnifyingglass").font(.system(size: 13)) }
                 }
-                .padding(.horizontal, 7).padding(.vertical, 5)
-                .background(isAnalyzing ? Color(red: 0.55, green: 0.20, blue: 0.78).opacity(0.55) : Color(red: 0.55, green: 0.20, blue: 0.78))
+                .frame(width: 34, height: 28)
                 .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .glassEffect(.regular.tint(Color(red: 0.55, green: 0.20, blue: 0.78).opacity(isAnalyzing ? 0.55 : 1)).interactive(), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .disabled(isRewriting || isAnalyzing)
+            .accessibilityLabel(isAnalyzing ? "Analyzing" : "Analyze")
+            .accessibilityHint("Checks your clipboard text for manipulative or narcissistic patterns.")
             Button {
                 dictation.toggle { text in
                     inputVC.textDocumentProxy.insertText(text)
@@ -620,9 +814,10 @@ struct KeyboardView: View {
                     .font(.system(size: 13))
                     .foregroundStyle(dictation.isRecording ? Color.red : Color.brandViolet)
                     .frame(width: 30, height: 28)
-                    .background(dictation.isRecording ? Color.red.opacity(0.12) : Color.brandViolet.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .glassEffect(.regular.tint((dictation.isRecording ? Color.red : Color.brandViolet).opacity(0.35)).interactive(), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
+            .accessibilityLabel(dictation.isRecording ? "Stop recording" : "Start voice dictation")
+            .accessibilityHint(dictation.isRecording ? "Stops listening and types what you said." : "Starts listening and types what you say.")
             Button {
                 guard let text = UIPasteboard.general.string, !text.isEmpty else { showStatus("Clipboard is empty"); return }
                 keyboardTypedText = text
@@ -631,243 +826,525 @@ struct KeyboardView: View {
             } label: {
                 Image(systemName: "doc.on.clipboard").font(.system(size: 12))
                     .frame(width: 30, height: 28)
-                    .background(Color(UIColor.systemGray4))
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
+            .accessibilityLabel("Paste")
+            .accessibilityHint("Inserts the text you last copied.")
         }
         .padding(.horizontal, 6)
     }
 
-    /// Letter keys are square and a fixed Apple-like size. On iPad the spare
-    /// width goes to compact side panels (action buttons) plus symmetric margin
-    /// so the key block stays centered — exactly like Apple's iPad keyboard.
+    /// Letter keys are square and fill the available width edge-to-edge,
+    /// matching Apple's keyboard — capped so keys don't get oversized on
+    /// the largest iPads in landscape.
     private var keySize: CGFloat {
         guard keyboardWidth > 0 else { return 34 }
-        let avail = keyboardWidth - sidePanelWidth * 2
-        return min((avail - 5 * 9) / 10, 70)
+        return min((keyboardWidth - 5 * 9) / 10, 100)
     }
 
-    /// Capped independently of width: on iPad, landscape gives extra
-    /// horizontal room but not extra vertical room, so wider keys should
-    /// stay rectangular (like Apple's iPad keyboard) rather than growing
-    /// the whole keyboard taller and risking clipping.
-    private var keyHeight: CGFloat { min(keySize, 56) }
+    /// True once the keyboard's actual size is known and it's wider than
+    /// it is tall — i.e. the device is in landscape. Landscape has much
+    /// less screen height to work with than the fixed height constraint
+    /// assumes for portrait, so several elements shrink or hide to fit.
+    private var isLandscape: Bool {
+        keyboardWidth > 0 && keyboardHeight > 0 && keyboardWidth > keyboardHeight
+    }
+
+    /// iPad and iPhone use different Apple key layouts: iPad puts delete at
+    /// the end of the q-row with shift on both sides of the z-row; iPhone
+    /// puts delete at the end of the z-row with shift only on the left.
+    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+
+    /// Set independently of width — the keyboard's overall height is fixed
+    /// (see the height constraint in viewDidLoad), so keys can be taller
+    /// than they are wide without risking clipping. iPhone in landscape has
+    /// the least vertical room of all, so keys shrink the most there.
+    ///
+    /// The rewrite-result screen keeps these same keys on screen (so you
+    /// can type into "Refine") above the rewrite text, its explanation, and
+    /// three choice buttons — more content than even the expanded height
+    /// budget (see `setContentExpanded`) can fit at full key size, so keys
+    /// shrink further there to leave room for the text to actually show.
+    private var keyHeight: CGFloat {
+        if !previewText.isEmpty {
+            return isPad ? 38 : (isLandscape ? 26 : 30)
+        }
+        if isPad { return isLandscape ? 46 : 54 }
+        return isLandscape ? 38 : 48
+    }
     private var keyAreaWidth: CGFloat { keySize * 10 + 5 * 9 }
 
     /// Width for the shift/delete keys on the z-row so that row totals
     /// keyAreaWidth exactly (matches the q-row and a-row above it).
     private var letterEdgeKeyWidth: CGFloat { keySize * 1.5 + 2.5 }
 
-    /// Width for the "#+=" / delete keys on the numbers row's bottom row so
-    /// that row totals keyAreaWidth exactly.
+    /// Width for the "#+=" key (and the empty space below the moved delete
+    /// key) on the numbers row's bottom row so that row totals keyAreaWidth
+    /// exactly.
     private var numberEdgeKeyWidth: CGFloat { keySize * 2.5 + 7.5 }
 
-    /// On iPad the spare width goes to side action panels (like Apple's
-    /// modifier columns) so the 10-key block stays square and centered.
-    /// 745 ≈ the key block width at the 70pt square cap (70*10 + 5*9).
-    private var sidePanelWidth: CGFloat {
-        guard keyboardWidth >= 600 else { return 0 }
-        return min(max(86, (keyboardWidth - 745) / 2), 280)
+    /// Key size for the numbers page's top row (1234567890-=), sized so that
+    /// those 12 keys plus the delete key at the end fill keyAreaWidth —
+    /// mirrors the Apple keyboard's hardware-style number row.
+    private var numberTopKeySize: CGFloat {
+        (keyAreaWidth - 12 * 5 - numberEdgeKeyWidth) / 12
+    }
+
+    /// Key size for the letters page's q-row, sized so that those 10 keys
+    /// plus the delete key at the end (next to "p") fill keyAreaWidth —
+    /// matches the Apple keyboard, where delete sits at the end of the
+    /// q-row rather than the z-row.
+    private var letterTopKeySize: CGFloat {
+        (keyAreaWidth - 10 * 5 - letterEdgeKeyWidth) / 10
     }
 
     private var keyboardSection: some View {
         HStack(alignment: .top, spacing: 0) {
             Spacer(minLength: 0)
-            if sidePanelWidth > 0 {
-                leftSidePanel.frame(width: sidePanelWidth)
-            }
             centerKeyRows.frame(width: keyboardWidth > 0 ? keyAreaWidth : nil)
-            if sidePanelWidth > 0 {
-                rightSidePanel.frame(width: sidePanelWidth)
-            }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
     }
 
+    /// Row of up to three tappable word completions, shown above the keys
+    /// while typing a word — mirrors Apple's predictive QuickType bar.
+    ///
+    /// Always reserves this row's full height, even with no suggestions —
+    /// otherwise the keys below shift up/down every time the suggestion bar
+    /// appears or disappears (e.g. on every space or backspace to empty).
+    private var suggestionBar: some View {
+        let showSuggestions = !isNumbers && !suggestions.isEmpty
+        return HStack(spacing: 0) {
+            if showSuggestions {
+                ForEach(Array(suggestions.enumerated()), id: \.offset) { index, suggestion in
+                    if index > 0 {
+                        Divider().frame(height: 18)
+                    }
+                    Button {
+                        applySuggestion(suggestion)
+                    } label: {
+                        Text(suggestion)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 30)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 30)
+        .glassEffect(showSuggestions ? .regular : .identity, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .padding(.horizontal, 6)
+    }
+
     private var centerKeyRows: some View {
+        GlassEffectContainer(spacing: 5) {
         VStack(spacing: 6) {
             if isNumbers {
-                letterRow(["1","2","3","4","5","6","7","8","9","0"])
-                letterRow(["-","/",":",";","(",")","$","&","@","\""])
-                HStack(spacing: 5) {
-                    modifierKey("#+=", width: numberEdgeKeyWidth) {}
-                    letterRow([".",",","?","!","'"])
-                    modifierKey(systemImage: "delete.left", width: numberEdgeKeyWidth) {
-                        inputVC.textDocumentProxy.deleteBackward()
-                        if !keyboardTypedText.isEmpty { keyboardTypedText.removeLast() }
+                if isPad {
+                    // iPad: 1234567890-= on row 1 with delete at the end,
+                    // matching Apple's iPad number row.
+                    HStack(spacing: 5) {
+                        letterRow(isSymbols ? ["[","]","{","}","#","%","^","*","+","=","_","\\"] : ["1","2","3","4","5","6","7","8","9","0","-","="], width: numberTopKeySize)
+                        deleteKey(width: numberEdgeKeyWidth)
+                    }
+                    letterRow(isSymbols ? ["§","|","~","≠","<",">","€","£","¥","·"] : ["-","/",":",";","(",")","$","&","@","\""])
+                    HStack(spacing: 5) {
+                        modifierKey(
+                            isSymbols ? "123" : "#+=", width: numberEdgeKeyWidth,
+                            accessibilityLabel: isSymbols ? "Numbers" : "More symbols",
+                            accessibilityHint: isSymbols ? "Switches back to numbers." : "Switches to more symbols."
+                        ) { isSymbols.toggle(); playKeyClick() }
+                        letterRow([".",",","?","!","'"])
+                        Color.clear.frame(width: numberEdgeKeyWidth, height: keyHeight)
+                    }
+                } else {
+                    // iPhone: plain 1234567890 on row 1, delete at the end
+                    // of row 3 — matching Apple's iPhone number row.
+                    letterRow(isSymbols ? ["[","]","{","}","#","%","^","*","+","="] : ["1","2","3","4","5","6","7","8","9","0"])
+                    letterRow(isSymbols ? ["_","\\","|","~","<",">","€","£","¥","•"] : ["-","/",":",";","(",")","$","&","@","\""])
+                    HStack(spacing: 5) {
+                        modifierKey(
+                            isSymbols ? "123" : "#+=", width: numberEdgeKeyWidth,
+                            accessibilityLabel: isSymbols ? "Numbers" : "More symbols",
+                            accessibilityHint: isSymbols ? "Switches back to numbers." : "Switches to more symbols."
+                        ) { isSymbols.toggle(); playKeyClick() }
+                        letterRow([".",",","?","!","'"])
+                        deleteKey(width: numberEdgeKeyWidth)
                     }
                 }
             } else {
-                letterRow(["q","w","e","r","t","y","u","i","o","p"])
-                letterRow(["a","s","d","f","g","h","j","k","l"]).padding(.horizontal, (keySize + 5) / 2)
-                HStack(spacing: 5) {
-                    modifierKey(systemImage: isShifted ? "shift.fill" : "shift", active: isShifted, width: letterEdgeKeyWidth) { isShifted.toggle() }
-                    letterRow(["z","x","c","v","b","n","m"])
-                    modifierKey(systemImage: "delete.left", width: letterEdgeKeyWidth) {
-                        inputVC.textDocumentProxy.deleteBackward()
-                        if !keyboardTypedText.isEmpty { keyboardTypedText.removeLast() }
+                if isPad {
+                    // iPad: qwertyuiop on row 1 with delete at the end, and
+                    // shift on both sides of the z-row.
+                    HStack(spacing: 5) {
+                        letterRow(["q","w","e","r","t","y","u","i","o","p"], width: letterTopKeySize)
+                        deleteKey(width: letterEdgeKeyWidth)
+                    }
+                    letterRow(["a","s","d","f","g","h","j","k","l"]).padding(.horizontal, (keySize + 5) / 2)
+                    HStack(spacing: 5) {
+                        shiftKey(width: letterEdgeKeyWidth)
+                        letterRow(["z","x","c","v","b","n","m"])
+                        shiftKey(width: letterEdgeKeyWidth)
+                    }
+                } else {
+                    // iPhone: plain qwertyuiop on row 1, shift on the left
+                    // and delete on the right of the z-row — matching
+                    // Apple's iPhone letter layout.
+                    letterRow(["q","w","e","r","t","y","u","i","o","p"])
+                    letterRow(["a","s","d","f","g","h","j","k","l"]).padding(.horizontal, (keySize + 5) / 2)
+                    HStack(spacing: 5) {
+                        shiftKey(width: letterEdgeKeyWidth)
+                        letterRow(["z","x","c","v","b","n","m"])
+                        deleteKey(width: letterEdgeKeyWidth)
                     }
                 }
             }
             HStack(spacing: 5) {
-                modifierKey(isNumbers ? "ABC" : "123", width: keySize * 1.3) { isNumbers.toggle(); isShifted = false }
-                modifierKey(systemImage: "globe", width: keySize * 1.1) { inputVC.advanceToNextInputMode() }
-                Button {
-                    inputVC.textDocumentProxy.insertText(" ")
-                    keyboardTypedText += " "
-                } label: {
-                    Text("space").font(.system(size: 13, weight: .regular))
-                        .frame(maxWidth: .infinity).frame(height: keyHeight)
-                        .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                        .shadow(color: Color.black.opacity(0.32), radius: 0, x: 0, y: 1)
+                modifierKey(
+                    isNumbers ? "ABC" : "123", width: keySize * 1.3,
+                    accessibilityLabel: isNumbers ? "Letters" : "Numbers and symbols",
+                    accessibilityHint: isNumbers ? "Switches back to the letter keys." : "Switches to numbers and symbols."
+                ) {
+                    isNumbers.toggle(); isSymbols = false
+                    if !capsLocked { isShifted = false }
+                    playKeyClick()
                 }
-                .buttonStyle(.plain)
-                modifierKey(".", width: keySize) { inputVC.textDocumentProxy.insertText("."); keyboardTypedText += "." }
-                modifierKey(systemImage: "return", width: keySize * 1.6) { inputVC.textDocumentProxy.insertText("\n"); keyboardTypedText += "\n" }
+                modifierKey(
+                    systemImage: "globe", width: keySize,
+                    accessibilityLabel: "Next keyboard",
+                    accessibilityHint: "Switches to your other installed keyboards."
+                ) {
+                    playKeyClick()
+                    inputVC.advanceToNextInputMode()
+                }
+                spaceKey
+                modifierKey(".", width: keySize, accessibilityLabel: "Period", accessibilityHint: "Types a period.") { insertCharacter(".") }
+                modifierKey(
+                    systemImage: "return", width: keySize * 1.6,
+                    accessibilityLabel: "Return",
+                    accessibilityHint: "Inserts a new line."
+                ) { insertCharacter("\n") }
             }
+        }
         }
     }
 
-    private var leftSidePanel: some View {
-        VStack(spacing: 5) {
-            ForEach(["Light", "Medium", "Strong"], id: \.self) { l in
-                Button {
-                    level = l
-                    defaults?.set(l, forKey: "rewriteLevel")
-                } label: {
-                    Text(levelKeyTitle(l))
-                        .font(.system(size: 11, weight: level == l ? .bold : .semibold))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(level == l ? Color.brandVioletDark : Color(UIColor.systemGray4))
-                        .foregroundStyle(level == l ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
-            Button(action: rewrite) {
-                HStack(spacing: 3) {
-                    if isRewriting { ProgressView().scaleEffect(0.6).tint(.white) }
-                    else { Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 11)) }
-                    Text(isRewriting ? "…" : "Rewrite")
-                        .font(.system(size: 11, weight: .bold)).lineLimit(1)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(isRewriting ? Color.brandVioletDark.opacity(0.55) : Color.brandVioletDark)
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
-            .disabled(isRewriting || isAnalyzing)
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 5).padding(.vertical, 1)
-    }
-
-    private var rightSidePanel: some View {
-        VStack(spacing: 5) {
-            Button {
-                dictation.toggle { text in
-                    inputVC.textDocumentProxy.insertText(text)
-                    keyboardTypedText += text
-                }
-            } label: {
-                VStack(spacing: 2) {
-                    Image(systemName: dictation.isRecording ? "stop.circle.fill" : "mic.fill")
-                        .font(.system(size: 13))
-                    Text(dictation.isRecording ? "Stop" : "Mic")
-                        .font(.system(size: 9))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .foregroundStyle(dictation.isRecording ? Color.red : Color.brandViolet)
-                .background(dictation.isRecording ? Color.red.opacity(0.12) : Color.brandViolet.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            Button {
-                guard let text = UIPasteboard.general.string, !text.isEmpty else {
-                    showStatus("Clipboard is empty"); return
-                }
-                keyboardTypedText = text
-                inputVC.textDocumentProxy.insertText(text)
-                showStatus("Pasted \u{2014} tap Rewrite")
-            } label: {
-                VStack(spacing: 2) {
-                    Image(systemName: "doc.on.clipboard").font(.system(size: 13))
-                    Text("Paste").font(.system(size: 9))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .foregroundStyle(Color.secondary)
-                .background(Color(UIColor.systemGray4))
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            Button(action: analyzeClipboard) {
-                VStack(spacing: 2) {
-                    if isAnalyzing { ProgressView().scaleEffect(0.5).tint(.white) }
-                    else { Image(systemName: "magnifyingglass").font(.system(size: 13)) }
-                    Text(isAnalyzing ? "…" : "Analyze")
-                        .font(.system(size: 10, weight: .bold)).lineLimit(1)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(isAnalyzing ? Color(red: 0.55, green: 0.20, blue: 0.78).opacity(0.55) : Color(red: 0.55, green: 0.20, blue: 0.78))
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
-            .disabled(isRewriting || isAnalyzing)
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 5).padding(.vertical, 1)
-    }
-
-    private func letterRow(_ letters: [String]) -> some View {
+    private func letterRow(_ letters: [String], width: CGFloat? = nil) -> some View {
         HStack(spacing: 5) {
             ForEach(letters, id: \.self) { letter in
-                letterKey(isShifted && !isNumbers ? letter.uppercased() : letter) {
-                    let output = isShifted && !isNumbers ? letter.uppercased() : letter
-                    inputVC.textDocumentProxy.insertText(output)
-                    keyboardTypedText += output
-                    if isShifted { isShifted = false }
+                let variants = accentVariants[letter.lowercased()] ?? []
+                let display = isShifted && !isNumbers ? letter.uppercased() : letter
+                Group {
+                    if variants.isEmpty {
+                        letterKey(display, width: width) { tapLetter(letter) }
+                    } else {
+                        letterKey(display, width: width) { tapLetter(letter) }
+                            .contextMenu {
+                                ForEach(variants, id: \.self) { variant in
+                                    Button(isShifted && !isNumbers ? variant.uppercased() : variant) {
+                                        insertCharacter(isShifted && !isNumbers ? variant.uppercased() : variant)
+                                        if isShifted && !capsLocked { isShifted = false }
+                                    }
+                                }
+                            }
+                    }
                 }
             }
         }
     }
 
-    private func letterKey(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title).font(.system(size: 18, weight: .regular))
-                .frame(width: keySize, height: keyHeight)
-                .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
-                .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .shadow(color: Color.black.opacity(0.32), radius: 0, x: 0, y: 1)
-        }
-        .buttonStyle(.plain)
+    private func tapLetter(_ letter: String) {
+        let output = isShifted && !isNumbers ? letter.uppercased() : letter
+        insertCharacter(output)
+        if isShifted && !capsLocked { isShifted = false }
     }
 
-    private func modifierKey(_ title: String, active: Bool = false, width: CGFloat, action: @escaping () -> Void) -> some View {
+    /// Deletes the character before the cursor and refreshes the
+    /// predictive suggestion bar — shared by the delete key on every page.
+    /// While the rewrite result view is showing, keys target
+    /// `refineInstruction` instead (see `insertCharacter`) since there's no
+    /// host text field on screen to delete from at that point.
+    private func deleteBackward() {
+        guard previewText.isEmpty else {
+            if !refineInstruction.isEmpty { refineInstruction.removeLast() }
+            playKeyClick()
+            return
+        }
+        inputVC.textDocumentProxy.deleteBackward()
+        if !keyboardTypedText.isEmpty { keyboardTypedText.removeLast() }
+        playKeyClick()
+        updateSuggestions()
+        updateAutoCapitalization()
+    }
+
+    /// Inserts a character, running autocorrect on the word just finished
+    /// when the character is whitespace/punctuation (mirrors the system
+    /// keyboard's "fix typo on space" behavior).
+    ///
+    /// While the rewrite result view is showing (`previewText` non-empty),
+    /// there's no host text field on screen — the on-screen keys are still
+    /// visible there only to type the "tell it what to fix" refine
+    /// instruction, so characters go into `refineInstruction` instead of
+    /// the document proxy. A custom keyboard extension can't summon a
+    /// system keyboard for a text field that lives inside itself, so this
+    /// is the only way to type into that field at all.
+    private func insertCharacter(_ s: String) {
+        guard previewText.isEmpty else {
+            refineInstruction += s
+            playKeyClick()
+            return
+        }
+        let proxy = inputVC.textDocumentProxy
+        if s == " ", let before = proxy.documentContextBeforeInput, before.hasSuffix(" "),
+           let lastTyped = before.dropLast().last, lastTyped.isLetter {
+            // Double-tapping space after a word inserts ". " instead,
+            // mirroring Apple's keyboard shortcut.
+            proxy.deleteBackward()
+            proxy.insertText(". ")
+            if !keyboardTypedText.isEmpty { keyboardTypedText.removeLast() }
+            keyboardTypedText += ". "
+            playKeyClick()
+            updateSuggestions()
+            updateAutoCapitalization()
+            return
+        }
+        if autocorrectTriggers.contains(s) {
+            autocorrectLastWord(proxy: proxy)
+        }
+        proxy.insertText(s)
+        keyboardTypedText += s
+        playKeyClick()
+        updateSuggestions()
+        updateAutoCapitalization()
+    }
+
+    /// Replaces the word currently being typed with the tapped suggestion
+    /// and inserts a trailing space, like tapping a QuickType suggestion.
+    private func applySuggestion(_ suggestion: String) {
+        let proxy = inputVC.textDocumentProxy
+        guard let before = proxy.documentContextBeforeInput else { return }
+        let trailing = before.reversed().prefix { $0.isLetter || $0 == "'" }
+        let word = String(trailing.reversed())
+        for _ in 0..<word.count { proxy.deleteBackward() }
+        if keyboardTypedText.hasSuffix(word) {
+            keyboardTypedText.removeLast(word.count)
+        }
+        insertCharacter(suggestion)
+        insertCharacter(" ")
+    }
+
+    private func autocorrectLastWord(proxy: UITextDocumentProxy) {
+        guard let before = proxy.documentContextBeforeInput else { return }
+        let trailing = before.reversed().prefix { $0.isLetter }
+        guard trailing.count > 1 else { return }
+        let word = String(trailing.reversed())
+        let range = NSRange(location: 0, length: word.utf16.count)
+        let misspelled = textChecker.rangeOfMisspelledWord(in: word, range: range, startingAt: 0, wrap: false, language: "en_US")
+        guard misspelled.location != NSNotFound,
+              let guesses = textChecker.guesses(forWordRange: misspelled, in: word, language: "en_US"),
+              let best = guesses.first else { return }
+        let corrected = matchCapitalization(of: word, to: best)
+        guard corrected != word else { return }
+        for _ in 0..<word.count { proxy.deleteBackward() }
+        proxy.insertText(corrected)
+        if keyboardTypedText.hasSuffix(word) {
+            keyboardTypedText.removeLast(word.count)
+            keyboardTypedText += corrected
+        }
+    }
+
+    private func matchCapitalization(of original: String, to suggestion: String) -> String {
+        if original.count > 1, original == original.uppercased() {
+            return suggestion.uppercased()
+        }
+        if let first = original.first, first.isUppercase {
+            return suggestion.prefix(1).uppercased() + suggestion.dropFirst()
+        }
+        return suggestion
+    }
+
+    /// Fires `action` the instant a finger touches the key (not on release,
+    /// like a plain `Button` would) — matching Apple's own keyboard, which
+    /// registers on touch-down for responsiveness. This also keeps the
+    /// press-preview bubble in sync with the actual keystroke: both now
+    /// happen at the same instant instead of the bubble appearing on touch
+    /// while the letter only lands after lifting your finger, which read as
+    /// laggy/unreliable typing fast.
+    private func letterKey(_ title: String, width: CGFloat? = nil, action: @escaping () -> Void) -> some View {
+        Text(title).font(.system(size: 18, weight: .regular))
+            .frame(width: width ?? keySize, height: keyHeight)
+            .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard pressedKeyTitle != title else { return }
+                        pressedKeyTitle = title
+                        action()
+                    }
+                    .onEnded { _ in if pressedKeyTitle == title { pressedKeyTitle = nil } }
+            )
+            .accessibilityAddTraits(.isButton)
+        .overlay(alignment: .top) {
+            if pressedKeyTitle == title {
+                Text(title)
+                    .font(.system(size: 26, weight: .regular))
+                    .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+                    .frame(width: (width ?? keySize) + 14, height: keyHeight + 16)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .offset(y: -(keyHeight + 12))
+                    .allowsHitTesting(false)
+                    .transition(.opacity.animation(.easeOut(duration: 0.08)))
+            }
+        }
+        .accessibilityLabel("\(title) key")
+        .accessibilityHint("Types the letter \(title).")
+    }
+
+    private func modifierKey(_ title: String, active: Bool = false, width: CGFloat, accessibilityLabel: String? = nil, accessibilityHint: String = "", action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title).font(.system(size: 12, weight: .semibold))
                 .frame(width: width, height: keyHeight)
                 .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
-                .background(active ? Color.brandVioletDark : Color(UIColor.systemGray4))
-                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .shadow(color: Color.black.opacity(0.22), radius: 0, x: 0, y: 1)
+                .glassEffect(active ? .regular.tint(Color.brandVioletDark).interactive() : .regular.interactive(), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel ?? title)
+        .accessibilityHint(accessibilityHint)
     }
 
-    private func modifierKey(systemImage: String, active: Bool = false, width: CGFloat, action: @escaping () -> Void) -> some View {
+    private func modifierKey(systemImage: String, active: Bool = false, width: CGFloat, accessibilityLabel: String, accessibilityHint: String = "", action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage).font(.system(size: 14, weight: .semibold))
                 .frame(width: width, height: keyHeight)
                 .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
-                .background(active ? Color.brandVioletDark : Color(UIColor.systemGray4))
-                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .shadow(color: Color.black.opacity(0.22), radius: 0, x: 0, y: 1)
+                .glassEffect(active ? .regular.tint(Color.brandVioletDark).interactive() : .regular.interactive(), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(accessibilityHint)
+    }
+
+    private func playKeyClick() {
+        UIDevice.current.playInputClick()
+        hapticGenerator.impactOccurred()
+        hapticGenerator.prepare()
+    }
+
+    private func shiftKey(width: CGFloat) -> some View {
+        modifierKey(
+            systemImage: capsLocked ? "capslock.fill" : (isShifted ? "shift.fill" : "shift"),
+            active: capsLocked || isShifted,
+            width: width,
+            accessibilityLabel: capsLocked ? "Caps lock, on" : (isShifted ? "Shift, on" : "Shift"),
+            accessibilityHint: "Tap once to capitalize only the next letter. Tap twice quickly to turn on caps lock.",
+            action: handleShiftTap
+        )
+    }
+
+    /// Double-tap toggles a persistent caps lock; a single tap behaves like
+    /// Apple's one-shot shift (capitalizes only the next letter).
+    private func handleShiftTap() {
+        playKeyClick()
+        let now = Date()
+        if let last = lastShiftTap, now.timeIntervalSince(last) < 0.35 {
+            capsLocked.toggle()
+            isShifted = capsLocked
+            lastShiftTap = nil
+        } else {
+            if capsLocked {
+                capsLocked = false
+                isShifted = false
+            } else {
+                isShifted.toggle()
+            }
+            lastShiftTap = now
+        }
+    }
+
+    /// Mirrors Apple's auto-capitalization: shift engages automatically at
+    /// the start of a text field and after sentence-ending punctuation.
+    private func updateAutoCapitalization() {
+        guard !capsLocked, !isNumbers else { return }
+        guard let before = inputVC.textDocumentProxy.documentContextBeforeInput, !before.isEmpty else {
+            isShifted = true
+            return
+        }
+        guard before.hasSuffix(" ") else { return }
+        let beforeTrailingSpace = before.dropLast().reversed().drop { $0 == " " }
+        if let lastNonSpace = beforeTrailingSpace.first {
+            isShifted = [".", "!", "?"].contains(String(lastNonSpace))
+        } else {
+            isShifted = true
+        }
+    }
+
+    /// Delete key with Apple's long-press auto-repeat behavior.
+    private func deleteKey(width: CGFloat) -> some View {
+        Image(systemName: "delete.left")
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+            .frame(width: width, height: keyHeight)
+            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard deleteTimer == nil else { return }
+                        deleteBackward()
+                        deleteTimer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: false) { _ in
+                            deleteTimer?.invalidate()
+                            deleteTimer = Timer.scheduledTimer(withTimeInterval: 0.06, repeats: true) { _ in
+                                deleteBackward()
+                            }
+                        }
+                    }
+                    .onEnded { _ in
+                        deleteTimer?.invalidate()
+                        deleteTimer = nil
+                    }
+            )
+            .accessibilityLabel("Delete")
+            .accessibilityHint("Removes the character before the cursor. Press and hold to delete repeatedly.")
+            .accessibilityAddTraits(.isButton)
+    }
+
+    /// Space bar: tap inserts a space; a horizontal drag moves the cursor,
+    /// mirroring Apple's space-bar trackpad gesture.
+    private var spaceKey: some View {
+        Text("space").font(.system(size: 13, weight: .regular))
+            .frame(maxWidth: .infinity).frame(height: keyHeight)
+            .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        guard previewText.isEmpty else { return }
+                        let dx = value.translation.width
+                        let step: CGFloat = 8
+                        let target = Int((dx - spaceDragAccumulated) / step)
+                        if target != 0 {
+                            inputVC.textDocumentProxy.adjustTextPosition(byCharacterOffset: target)
+                            spaceDragAccumulated += CGFloat(target) * step
+                        }
+                    }
+                    .onEnded { value in
+                        if abs(value.translation.width) < 4 {
+                            insertCharacter(" ")
+                        }
+                        spaceDragAccumulated = 0
+                    }
+            )
+            .accessibilityLabel("Space")
+            .accessibilityHint("Inserts a space. Drag left or right to move the cursor.")
+            .accessibilityAddTraits(.isButton)
     }
 
     private var spiralCard: some View {
@@ -904,11 +1381,12 @@ struct KeyboardView: View {
         Button(action: action) {
             Text(title).font(.system(size: 11, weight: .semibold))
                 .frame(maxWidth: .infinity).padding(.vertical, 8)
-                .background(primary ? Color.brandVioletDark : Color(UIColor.systemGray4))
                 .foregroundStyle(primary ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .glassEffect(primary ? .regular.tint(Color.brandVioletDark).interactive() : .regular.interactive(), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityHint(primary ? "Uses this rewritten version." : "Keeps your text without the full rewrite.")
     }
 
     private func levelKeyTitle(_ value: String) -> String {
@@ -926,6 +1404,7 @@ struct KeyboardView: View {
         profileAUDHD  = defaults?.bool(forKey: "ndprofile.audhd") ?? false
         profilePTSD   = defaults?.bool(forKey: "ndprofile.ptsd") ?? false
         profileCPTSD  = defaults?.bool(forKey: "ndprofile.cptsd") ?? false
+        profileDyslexic = defaults?.bool(forKey: "ndprofile.dyslexic") ?? false
         let stored = defaults?.string(forKey: "rewriteLevel") ?? "Medium"
         level = ["Light", "Medium", "Strong"].contains(stored) ? stored : "Medium"
         spiralEnabled = defaults?.object(forKey: "spiralPauseEnabled") == nil ? true : (defaults?.bool(forKey: "spiralPauseEnabled") ?? true)
@@ -933,8 +1412,48 @@ struct KeyboardView: View {
         teachingBody = defaults?.string(forKey: "lastTeachingNote") ?? ""
     }
 
-    private func rewrite() {
+    /// `UITextDocumentProxy.documentContextBeforeInput`/`AfterInput` only
+    /// ever expose a small, roughly fixed-size window of text right around
+    /// the cursor, not the whole field — a hard iOS platform limit. For a
+    /// long pasted message, that window is just the tail end nearest the
+    /// cursor, which is exactly why rewriting only picked up "the very
+    /// last bit" of a pasted message.
+    ///
+    /// The fix: walk the cursor backward in small steps, and at each new
+    /// position take only the *last* `step` characters of the freshly-read
+    /// window — since we only moved back by `step`, those trailing
+    /// characters are exactly the newly-revealed gap between this window
+    /// and the text already captured, so prepending them (rather than the
+    /// whole window, which mostly re-covers ground we already have)
+    /// reconstructs the full text without duplication. `step` is kept
+    /// small relative to the window's real (undocumented) size so a
+    /// single jump can never skip over unread text — an earlier version
+    /// of this used a large jump and a "window got longer" stopping
+    /// condition that assumed the window keeps growing the further back
+    /// you go; it doesn't, so that version only ever captured one shifted
+    /// window's worth of text before stopping. Finally, the cursor is
+    /// restored to exactly where it started.
+    private func seedTypedTextFromProxy() {
+        guard keyboardTypedText.isEmpty else { return }
         let proxy = inputVC.textDocumentProxy
+        let after = proxy.documentContextAfterInput ?? ""
+        var accumulated = proxy.documentContextBeforeInput ?? ""
+        var movedBack = 0
+        let step = 15
+        for _ in 0..<250 {
+            proxy.adjustTextPosition(byCharacterOffset: -step)
+            movedBack += step
+            guard let newWindow = proxy.documentContextBeforeInput, !newWindow.isEmpty else { break }
+            accumulated = String(newWindow.suffix(step)) + accumulated
+            if newWindow.count < step { break }
+        }
+        if movedBack > 0 {
+            proxy.adjustTextPosition(byCharacterOffset: movedBack)
+        }
+        keyboardTypedText = accumulated + after
+    }
+
+    private func rewrite() {
         defaults?.synchronize()
         isRewriting = true; explanation = ""; showSpiral = false
         previewText = ""; pendingDeleteCount = 0
@@ -944,6 +1463,7 @@ struct KeyboardView: View {
         let tone = dictation.humeTone.toneSummary
         let voiceDistressed = dictation.humeTone.isDistressed
         dictation.humeTone.reset()
+        let proxy = inputVC.textDocumentProxy
         Task {
             // Capture the WHOLE message, not just the window iOS exposes near the
             // cursor. If the user typed everything here and the cursor is at the
@@ -978,7 +1498,15 @@ struct KeyboardView: View {
             }
             await MainActor.run { showStatus("Sending \(full.count) chars\u{2026}") }
             do {
-                let result = try await callServer(text: full, tone: tone)
+                let result = try await router.rewrite(
+                    text: full,
+                    profile: activeProfileLabel,
+                    level: level,
+                    mode: "tonelayer",
+                    tone: tone,
+                    voiceDistressed: voiceDistressed,
+                    allowOnDevice: true
+                )
                 var note = result.explanation.isEmpty ? "Rewritten at \(level) for \(activeProfileLabel)." : result.explanation
                 if voiceDistressed && !result.isSpiraling {
                     note += " Your voice sounded tense while dictating this, so we paused before sending."
@@ -1003,6 +1531,7 @@ struct KeyboardView: View {
                         teachingBody = note
                         defaults?.set(note, forKey: "lastTeachingNote")
                         previewGrammar = result.grammarOnly
+                        previewSource = result.source
                         withAnimation { previewText = result.rewrite }
                         saveLog(original: full, result: result)
                     }
@@ -1149,56 +1678,6 @@ struct KeyboardView: View {
         }
     }
 
-    struct ClaudeResult {
-        let rewrite: String
-        let explanation: String
-        let distortions: [String]
-        let grammarOnly: String
-        var isSpiraling: Bool { !distortions.isEmpty }
-    }
-
-    private func callServer(text: String, tone: String = "") async throws -> ClaudeResult {
-        var req = URLRequest(url: URL(string: serverURL)!)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue(appToken,           forHTTPHeaderField: "x-app-token")
-        req.timeoutInterval = 90
-        var body: [String: Any] = [
-            "text":    text,
-            "profile": activeProfileLabel,
-            "level":   level,
-            "mode":    "tonelayer"
-        ]
-        if !tone.isEmpty { body["tone"] = tone }
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await URLSession.shared.data(for: req)
-        guard let http = response as? HTTPURLResponse else { throw NBError.apiFailed(0) }
-        if http.statusCode != 200 {
-            if let errJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let msg = errJSON["error"] as? String {
-                throw NBError.apiMessage("\(http.statusCode): \(msg.prefix(120))")
-            }
-            throw NBError.apiFailed(http.statusCode)
-        }
-        guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { throw NBError.badResponse }
-        let rewrite: String
-        if let paras = parsed["paragraphs"] as? [String], !paras.isEmpty {
-            rewrite = paras.joined(separator: "\n\n")
-        } else if let r = parsed["rewrite"] as? String, !r.isEmpty {
-            rewrite = r
-        } else {
-            rewrite = ""
-        }
-        guard !rewrite.isEmpty else { throw NBError.badResponse }
-        return ClaudeResult(
-            rewrite:     rewrite,
-            explanation: parsed["explanation"] as? String   ?? "",
-            distortions: parsed["distortions"] as? [String] ?? [],
-            grammarOnly: parsed["grammar_only"] as? String  ?? ""
-        )
-    }
-
     private func analyzeClipboard() {
         guard let text = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines),
               !text.isEmpty else {
@@ -1236,42 +1715,27 @@ struct KeyboardView: View {
         let patterns: [NarcPattern]
         let validation: String
         let boundaryScript: String
+        let redactionNotice: String?
     }
 
     private func callNarc(text: String) async throws -> NarcResult {
-        let narcURL = "https://tonelayer-server-production.up.railway.app/narc"
-        var req = URLRequest(url: URL(string: narcURL)!)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue(appToken,           forHTTPHeaderField: "x-app-token")
-        req.timeoutInterval = 90
-        req.httpBody = try JSONSerialization.data(withJSONObject: ["text": text])
-        let (data, response) = try await URLSession.shared.data(for: req)
-        guard let http = response as? HTTPURLResponse else { throw NBError.apiFailed(0) }
-        if http.statusCode != 200 {
-            if let errJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let msg = errJSON["error"] as? String {
-                throw NBError.apiMessage("\(http.statusCode): \(msg.prefix(120))")
-            }
-            throw NBError.apiFailed(http.statusCode)
-        }
-        guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw NBError.badResponse
-        }
-        let summary        = parsed["summary"] as? String ?? ""
-        let validation     = parsed["validation"] as? String ?? ""
-        let boundaryScript = parsed["boundary_script"] as? String ?? ""
-        let riskLevel      = parsed["risk_level"] as? String ?? ""
+        let (redactedText, mapping, flaggedKinds) = redactor.redact(text)
+        let parsed = try await RewriteRouter.postJSON(url: AppConfig.narcURL, body: ["text": redactedText])
+
+        let summary        = redactor.rehydrate(parsed["summary"] as? String ?? "", mapping: mapping)
+        let validation      = redactor.rehydrate(parsed["validation"] as? String ?? "", mapping: mapping)
+        let boundaryScript  = redactor.rehydrate(parsed["boundary_script"] as? String ?? "", mapping: mapping)
+        let riskLevel       = parsed["risk_level"] as? String ?? ""
         let patterns = (parsed["patterns"] as? [[String: Any]] ?? []).map { p in
             NarcPattern(
                 name:        p["name"]        as? String ?? "",
-                quote:       p["quote"]       as? String ?? "",
+                quote:       redactor.rehydrate(p["quote"] as? String ?? "", mapping: mapping),
                 explanation: p["explanation"] as? String ?? "",
                 ndImpact:    p["nd_impact"]    as? String ?? ""
             )
         }
         guard !summary.isEmpty || !patterns.isEmpty else { throw NBError.badResponse }
-        return NarcResult(riskLevel: riskLevel, summary: summary, patterns: patterns, validation: validation, boundaryScript: boundaryScript)
+        return NarcResult(riskLevel: riskLevel, summary: summary, patterns: patterns, validation: validation, boundaryScript: boundaryScript, redactionNotice: PIIRedactor.friendlyNotice(for: flaggedKinds))
     }
 
     /// Turns the structured /narc result into the plain-text block shown in
@@ -1290,6 +1754,7 @@ struct KeyboardView: View {
         if !r.validation.isEmpty { lines.append(r.validation) }
         if !r.boundaryScript.isEmpty { lines.append("You could say: \"\(r.boundaryScript)\"") }
         if lines.isEmpty { lines.append("No concerning patterns found in this message.") }
+        if let notice = r.redactionNotice { lines.append(notice) }
         return lines.joined(separator: "\n\n")
     }
 
@@ -1303,48 +1768,6 @@ struct KeyboardView: View {
     }
 }
 
-enum AnalyzeMode { case narc, decode }
-
-enum NBError: LocalizedError {
-    case apiFailed(Int); case apiMessage(String); case badResponse
-    var errorDescription: String? {
-        switch self {
-        case .apiFailed(let code): return "Server error (HTTP \(code))"
-        case .apiMessage(let s):   return s
-        case .badResponse:         return "Unexpected server response"
-        }
-    }
-}
-
-struct RewriteEntry: Codable {
-    let id: UUID; let timestamp: Date; let profile: String; let mode: String
-    let originalText: String; let rewrittenText: String
-    let explanation: String; let distortions: [String]; let spiraling: Bool
-}
-
-final class LogStore {
-    static let shared = LogStore()
-    private let appGroupID = "group.com.alden.tonelayer"
-    private let fileName   = "rewrite_log.json"
-    private var logURL: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)?.appendingPathComponent(fileName)
-    }
-    func load() -> [RewriteEntry] {
-        guard let url = logURL, let data = try? Data(contentsOf: url),
-              let entries = try? JSONDecoder().decode([RewriteEntry].self, from: data) else { return [] }
-        return entries
-    }
-    func append(_ entry: RewriteEntry) {
-        var entries = load(); entries.append(entry)
-        if entries.count > 500 { entries = Array(entries.suffix(500)) }
-        guard let url = logURL, let data = try? JSONEncoder().encode(entries) else { return }
-        try? data.write(to: url, options: .atomic)
-    }
-    func topPatterns(limit: Int = 40) -> [(pattern: String, count: Int)] {
-        let recent = Array(load().suffix(limit))
-        let all = recent.flatMap { $0.distortions }.filter { !$0.isEmpty }
-        return Dictionary(grouping: all, by: { $0 }).mapValues { $0.count }
-            .filter { $0.value >= 2 }.sorted { $0.value > $1.value }
-            .prefix(3).map { (pattern: $0.key, count: $0.value) }
-    }
-}
+// ClaudeResult, NBError, RewriteEntry, and LogStore now live in
+// ToneLayerCore (shared with the main app) — see
+// ToneLayerCore/Sources/ToneLayerCore/RewriteModels.swift.

@@ -42,8 +42,9 @@ struct SettingsView: View {
                 profileCheckbox("ADHD",   isOn: $appModel.profileADHD)
                 profileCheckbox("Autism", isOn: $appModel.profileAutism)
                 profileCheckbox("AUDHD",  isOn: $appModel.profileAUDHD)
-                profileCheckbox("PTSD",   isOn: $appModel.profilePTSD)
-                profileCheckbox("CPTSD",  isOn: $appModel.profileCPTSD)
+                profileCheckbox("PTSD",     isOn: $appModel.profilePTSD)
+                profileCheckbox("CPTSD",    isOn: $appModel.profileCPTSD)
+                profileCheckbox("Dyslexic", isOn: $appModel.profileDyslexic)
             }
             if appModel.activeProfileLabel != "General ND" {
                 Label("Active: \(appModel.activeProfileLabel)", systemImage: "checkmark.circle.fill")

@@ -4,6 +4,7 @@
 
 import SwiftUI
 import UIKit
+import ToneLayerCore
 
 struct DecoderView: View {
 
@@ -17,6 +18,7 @@ struct DecoderView: View {
     @State private var decodeBaseline      = ""
     @State private var decodeTentative     = false
     @State private var decodeStatus        = ""
+    @State private var decodeRedactionNotice: String? = nil
 
     var body: some View {
         ScrollView {
@@ -113,6 +115,16 @@ struct DecoderView: View {
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(decodeStatus.contains("…") ? Color.clear : Color.red.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+
+            if let notice = decodeRedactionNotice, !notice.isEmpty {
+                Text(notice)
+                    .font(.caption)
+                    .foregroundStyle(Color.brandVioletDark)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.brandVioletMist)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
 
@@ -224,6 +236,7 @@ struct DecoderView: View {
                 await MainActor.run {
                     isDecoding = false
                     decodeStatus = ""
+                    decodeRedactionNotice = result.redactionNotice
                     decodeTranslation = result.translation
                     decodePatterns    = result.patterns
                     decodeCommStyle   = result.commStyle
@@ -252,44 +265,55 @@ struct DecoderView: View {
         let commStyle: String
         let baseline: String
         let tentative: Bool
+        let redactionNotice: String?
+    }
+
+    /// A computed summary — message count, average length, and which
+    /// patterns have shown up before — never the raw prior message text
+    /// itself. This is what tonelayer-server's `/decode` prompt actually
+    /// reads (`baseline.messageCount`/`avgLength`/`observedPatterns`); it
+    /// previously received an unused raw `history` field of past message
+    /// text instead, which the server ignored but the client still sent
+    /// over the network for no benefit.
+    private func computeBaseline(history: [DecodeEntry]) -> [String: Any]? {
+        guard !history.isEmpty else { return nil }
+        let avgLength = history.map { $0.text.count }.reduce(0, +) / history.count
+        let observedPatterns = Array(Set(history.flatMap { $0.patterns })).prefix(5)
+        return [
+            "messageCount": history.count,
+            "avgLength": avgLength,
+            "observedPatterns": Array(observedPatterns)
+        ]
     }
 
     private func callDecode(text: String) async throws -> DecodeResult {
         let contact = decodeContactName.trimmingCharacters(in: .whitespacesAndNewlines)
         let history = DecodeStore.shared.messages(for: contact)
-        var req = URLRequest(url: URL(string: AppConfig.decodeURL)!)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue(AppConfig.appToken, forHTTPHeaderField: "x-app-token")
-        req.timeoutInterval = 90
-        req.httpBody = try JSONSerialization.data(withJSONObject: [
-            "text":        text,
-            "contact":     contact.isEmpty ? "Unknown" : contact,
-            "sensitivity": decodeSensitivity,
-            "history":     history.suffix(10).map { ["text": $0.text, "patterns": $0.patterns] }
-        ])
-        let (data, response) = try await URLSession.shared.data(for: req)
-        guard let http = response as? HTTPURLResponse else { throw ComposerError.apiFailed(0) }
-        if http.statusCode != 200 {
-            if let e = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let msg = e["error"] as? String {
-                throw ComposerError.apiMessage("\(http.statusCode): \(msg.prefix(120))")
-            }
-            throw ComposerError.apiFailed(http.statusCode)
-        }
-        guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { throw ComposerError.badResponse }
-        let translation = parsed["translation"] as? String
-            ?? parsed["summary"]  as? String
-            ?? parsed["analysis"] as? String
-            ?? ""
+
+        let redactor = PIIRedactor()
+        let (redactedTexts, mapping, flaggedKinds) = redactor.redactMultiple([text, contact.isEmpty ? "Unknown" : contact])
+
+        var body: [String: Any] = [
+            "text":        redactedTexts[0],
+            "contact":     redactedTexts[1],
+            "sensitivity": decodeSensitivity
+        ]
+        if let baseline = computeBaseline(history: history) { body["baseline"] = baseline }
+
+        let parsed = try await RewriteRouter.postJSON(url: AppConfig.decodeURL, body: body)
+
+        let translation = redactor.rehydrate(
+            parsed["translation"] as? String ?? parsed["summary"] as? String ?? parsed["analysis"] as? String ?? "",
+            mapping: mapping
+        )
         guard !translation.isEmpty else { throw ComposerError.badResponse }
-        let patterns = parsed["flags"] as? [String] ?? parsed["patterns"] as? [String] ?? []
+        let patterns = (parsed["flags"] as? [String] ?? parsed["patterns"] as? [String] ?? [])
+            .map { redactor.rehydrate($0, mapping: mapping) }
         let commStyle = parsed["communication_style"] as? String ?? ""
         let baseline = parsed["baseline_note"] as? String ?? parsed["baseline"] as? String ?? parsed["note"] as? String ?? ""
         let isDefinitive = parsed["is_definitive"] as? Bool ?? true
         let tentative = !isDefinitive || baseline.lowercased().contains("building") || baseline.lowercased().contains("tentative")
-        return DecodeResult(translation: translation, patterns: patterns, commStyle: commStyle, baseline: baseline, tentative: tentative)
+        return DecodeResult(translation: translation, patterns: patterns, commStyle: commStyle, baseline: baseline, tentative: tentative, redactionNotice: PIIRedactor.friendlyNotice(for: flaggedKinds))
     }
 }
 

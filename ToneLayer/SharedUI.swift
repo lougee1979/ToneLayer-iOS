@@ -14,13 +14,6 @@ extension Color {
     static let brandVioletMist = Color(red: 0.929, green: 0.878, blue: 1.000)
 }
 
-enum AppConfig {
-    static let serverURL    = "https://tonelayer-server-production.up.railway.app/rewrite"
-    static let decodeURL    = "https://tonelayer-server-production.up.railway.app/decode"
-    static let analyticsURL = "https://tonelayer-server-production.up.railway.app/analytics"
-    static let appToken     = "d731136d97cdd46453e7581465537e0d9aee811512b885c2"
-}
-
 /// Which engine produced a rewrite — and therefore whether the user's text
 /// left their phone. We use this to tell the user, plainly, every time.
 enum RewritePrivacy {

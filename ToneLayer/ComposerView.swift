@@ -4,10 +4,12 @@
 
 import SwiftUI
 import UIKit
+import ToneLayerCore
 
 struct ComposerView: View {
 
     @EnvironmentObject var appModel: AppModel
+    @EnvironmentObject var hume: HumeEVIClient
 
     @State private var isComposerRewriting = false
     @State private var composerStatus      = ""
@@ -15,9 +17,16 @@ struct ComposerView: View {
     @State private var composerGrammar     = ""
     @State private var composerNT          = ""
     @State private var composerExplanation = ""
+    @State private var composerSource: RewriteSource = .cloud
     @State private var selectedOutput      = "NT version"
     @State private var feedbackSubmitted   = false
     @State private var showingInsight      = false
+    @State private var refineInstruction   = ""
+    @State private var refineTone          = ""
+    @State private var isRefining          = false
+
+    private let router = RewriteRouter()
+    private let refineClient = RefineClient()
 
     private let outputTabs = ["Original", "Grammar only", "NT version"]
 
@@ -64,6 +73,9 @@ struct ComposerView: View {
             .padding()
         }
         .appBackground()
+        .onDisappear {
+            if hume.isConnected { hume.disconnect() }
+        }
         .sheet(isPresented: $showingInsight) {
             InsightView(onUseTranscript: { text in
                 appModel.testText = text
@@ -75,6 +87,7 @@ struct ComposerView: View {
                 appModel.sharedDefaults.set(appModel.testText, forKey: "testBoxFullText")
                 appModel.sharedDefaults.synchronize()
             })
+            .environmentObject(hume)
         }
     }
 
@@ -274,6 +287,10 @@ struct ComposerView: View {
             .background(Color.brandVioletMist.opacity(0.95))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             if hasComposerOutput {
+                Text(composerSource == .onDevice ? "On-device" : "Precise \u{2014} via Claude")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                refineRow
                 HStack(spacing: 10) {
                     Button { copyComposerResult() } label: {
                         Label("Copy", systemImage: "doc.on.doc").frame(maxWidth: .infinity)
@@ -297,6 +314,74 @@ struct ComposerView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
         .glassCard(tint: .brandVioletDark)
+    }
+
+    /// Not quite right? tell it what to fix — always shown alongside a
+    /// rewrite result, on-device or cloud. A correction always goes to the
+    /// AI, never handled locally by pattern-matching. The mic button opens
+    /// a short voice discussion with Hume instead: the user says what they
+    /// want changed, Hume's prosody model reads their vocal tone alongside
+    /// the words, and both get sent to /refine together.
+    private var refineRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                TextField("Not quite right? Tell it what to fix\u{2026}", text: $refineInstruction)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.subheadline)
+                    .disabled(hume.isConnected)
+                Button {
+                    hume.isConnected ? finishVoiceDiscussion() : startVoiceDiscussion()
+                } label: {
+                    Image(systemName: hume.isConnected ? "waveform.circle.fill" : "mic.circle")
+                        .font(.system(size: 26))
+                        .foregroundStyle(hume.isConnected ? .red : Color.brandVioletDark)
+                }
+                .buttonStyle(.plain)
+                .disabled(!hume.isConnected && !hasComposerOutput)
+                Button {
+                    refineComposer()
+                } label: {
+                    if isRefining { ProgressView() } else { Text("Refine") }
+                }
+                .buttonStyle(.bordered)
+                .disabled(isRefining || hume.isConnected || refineInstruction.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            if hume.isConnected {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(hume.assistantText.isEmpty ? "Listening\u{2026} say what you'd like to change." : hume.assistantText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if !hume.transcript.isEmpty {
+                        Text("\u{201C}\(hume.transcript)\u{201D}")
+                            .font(.caption)
+                            .italic()
+                            .foregroundStyle(Color.primary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(Color.brandVioletMist.opacity(0.6))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+        }
+    }
+
+    private func startVoiceDiscussion() {
+        guard hasComposerOutput else { return }
+        hume.connect(
+            systemPromptOverride: HumeEVIClient.refineDiscussionPrompt(rewriteContext: composerNT),
+            openingLine: "What would you like to change about this?"
+        )
+    }
+
+    private func finishVoiceDiscussion() {
+        let spoken = hume.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tone = hume.toneSummary
+        hume.disconnect()
+        guard !spoken.isEmpty else { return }
+        refineInstruction = spoken
+        refineTone = tone
+        refineComposer()
     }
 
     private var feedbackCard: some View {
@@ -390,11 +475,22 @@ struct ComposerView: View {
         feedbackSubmitted = false
         Task {
             do {
-                let result = try await callServer(text: input)
+                // The app always routes to the cloud, regardless of level —
+                // unlike the keyboard, which sends Light-level rewrites
+                // on-device. The app is for more deliberate composition and
+                // always gets the careful cloud pass.
+                let result = try await router.rewrite(
+                    text: input,
+                    profile: appModel.activeProfileLabel,
+                    level: appModel.rewriteLevel,
+                    mode: "tonelayer",
+                    allowOnDevice: false
+                )
                 await MainActor.run {
                     composerGrammar     = result.grammarOnly.isEmpty ? input : result.grammarOnly
                     composerNT          = result.rewrite
                     composerExplanation = result.explanation
+                    composerSource      = result.source
                     isComposerRewriting = false
                     composerStatus      = "Ready"
                     saveLog(original: input, rewritten: result.rewrite, explanation: result.explanation, distortions: result.distortions)
@@ -408,49 +504,33 @@ struct ComposerView: View {
         }
     }
 
-    private struct ComposerResult {
-        let rewrite: String
-        let grammarOnly: String
-        let explanation: String
-        let distortions: [String]
-    }
-
-    private func callServer(text: String) async throws -> ComposerResult {
-        var req = URLRequest(url: URL(string: AppConfig.serverURL)!)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue(AppConfig.appToken, forHTTPHeaderField: "x-app-token")
-        req.timeoutInterval = 90
-        req.httpBody = try JSONSerialization.data(withJSONObject: [
-            "text":    text,
-            "profile": appModel.activeProfileLabel,
-            "level":   appModel.rewriteLevel,
-            "mode":    "tonelayer"
-        ])
-        let (data, response) = try await URLSession.shared.data(for: req)
-        guard let http = response as? HTTPURLResponse else { throw ComposerError.apiFailed(0) }
-        if http.statusCode != 200 {
-            if let errJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let msg = errJSON["error"] as? String {
-                throw ComposerError.apiMessage("\(http.statusCode): \(msg.prefix(120))")
+    private func refineComposer() {
+        let instruction = refineInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !instruction.isEmpty, !composerNT.isEmpty else { return }
+        isRefining = true
+        Task {
+            do {
+                let result = try await refineClient.refine(
+                    previousRewrite: composerNT,
+                    instruction: instruction,
+                    profile: appModel.activeProfileLabel,
+                    level: appModel.rewriteLevel,
+                    mode: "tonelayer",
+                    tone: refineTone
+                )
+                await MainActor.run {
+                    isRefining = false
+                    refineInstruction = ""
+                    refineTone = ""
+                    composerNT = result.rewrite
+                    composerGrammar = result.grammarOnly.isEmpty ? composerGrammar : result.grammarOnly
+                    composerSource = result.source
+                    if !result.explanation.isEmpty { composerExplanation = result.explanation }
+                }
+            } catch {
+                await MainActor.run { isRefining = false; composerStatus = error.localizedDescription }
             }
-            throw ComposerError.apiFailed(http.statusCode)
         }
-        guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { throw ComposerError.badResponse }
-        let rewrite: String
-        if let paras = parsed["paragraphs"] as? [String], !paras.isEmpty {
-            rewrite = paras.joined(separator: "\n\n")
-        } else {
-            rewrite = parsed["rewrite"] as? String ?? ""
-        }
-        guard !rewrite.isEmpty else { throw ComposerError.badResponse }
-        return ComposerResult(
-            rewrite:     rewrite,
-            grammarOnly: parsed["grammar_only"] as? String ?? "",
-            explanation: parsed["explanation"]  as? String ?? "",
-            distortions: parsed["distortions"]  as? [String] ?? []
-        )
     }
 
     private func saveLog(original: String, rewritten: String, explanation: String, distortions: [String]) {

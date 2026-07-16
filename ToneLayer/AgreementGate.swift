@@ -29,7 +29,7 @@ struct AgreementGate: View {
 
             VStack(spacing: 0) {
                 VStack(spacing: 8) {
-                    Image(systemName: "yin.yang")
+                    Image(systemName: "yinyang")
                         .font(.system(size: 46, weight: .light))
                         .foregroundStyle(Color(red: 0.369, green: 0.122, blue: 0.784))
                     Text("ToneLayer").font(.system(size: 30, weight: .bold))

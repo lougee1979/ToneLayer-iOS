@@ -3,6 +3,7 @@
 // distribution, or derivative use is prohibited.
 
 import SwiftUI
+import ToneLayerCore
 
 struct HistoryView: View {
 

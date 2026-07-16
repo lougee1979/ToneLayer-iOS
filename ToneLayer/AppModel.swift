@@ -4,15 +4,17 @@
 
 import Foundation
 import Combine
+import ToneLayerCore
 
 final class AppModel: ObservableObject {
 
     // Profile (Settings writes; Compose reads via activeProfileLabel)
-    @Published var profileADHD   = false
-    @Published var profileAutism = true
-    @Published var profileAUDHD  = false
-    @Published var profilePTSD   = false
-    @Published var profileCPTSD  = false
+    @Published var profileADHD     = false
+    @Published var profileAutism   = true
+    @Published var profileAUDHD    = false
+    @Published var profilePTSD     = false
+    @Published var profileCPTSD    = false
+    @Published var profileDyslexic = false
 
     // Shared settings (Settings tab writes; Compose/History read)
     @Published var rewriteLevel       = "Medium"
@@ -74,33 +76,37 @@ final class AppModel: ObservableObject {
             if profileADHD   { p.append("ADHD") }
             if profileAutism { p.append("Autism") }
         }
-        if profilePTSD   { p.append("PTSD") }
-        if profileCPTSD  { p.append("CPTSD") }
+        if profilePTSD     { p.append("PTSD") }
+        if profileCPTSD    { p.append("CPTSD") }
+        if profileDyslexic { p.append("Dyslexic") }
         return p.isEmpty ? "General ND" : p.joined(separator: " + ")
     }
 
     func syncProfileSettings() {
-        UserDefaults.standard.set(profileADHD,   forKey: "ndprofile.adhd")
-        UserDefaults.standard.set(profileAutism, forKey: "ndprofile.autism")
-        UserDefaults.standard.set(profileAUDHD,  forKey: "ndprofile.audhd")
-        UserDefaults.standard.set(profilePTSD,   forKey: "ndprofile.ptsd")
-        UserDefaults.standard.set(profileCPTSD,  forKey: "ndprofile.cptsd")
-        sharedDefaults.set(activeProfileLabel,   forKey: selectedProfileKey)
-        sharedDefaults.set(profileADHD,          forKey: "ndprofile.adhd")
-        sharedDefaults.set(profileAutism,        forKey: "ndprofile.autism")
-        sharedDefaults.set(profileAUDHD,         forKey: "ndprofile.audhd")
-        sharedDefaults.set(profilePTSD,          forKey: "ndprofile.ptsd")
-        sharedDefaults.set(profileCPTSD,         forKey: "ndprofile.cptsd")
+        UserDefaults.standard.set(profileADHD,     forKey: "ndprofile.adhd")
+        UserDefaults.standard.set(profileAutism,   forKey: "ndprofile.autism")
+        UserDefaults.standard.set(profileAUDHD,    forKey: "ndprofile.audhd")
+        UserDefaults.standard.set(profilePTSD,     forKey: "ndprofile.ptsd")
+        UserDefaults.standard.set(profileCPTSD,    forKey: "ndprofile.cptsd")
+        UserDefaults.standard.set(profileDyslexic, forKey: "ndprofile.dyslexic")
+        sharedDefaults.set(activeProfileLabel,     forKey: selectedProfileKey)
+        sharedDefaults.set(profileADHD,            forKey: "ndprofile.adhd")
+        sharedDefaults.set(profileAutism,          forKey: "ndprofile.autism")
+        sharedDefaults.set(profileAUDHD,           forKey: "ndprofile.audhd")
+        sharedDefaults.set(profilePTSD,            forKey: "ndprofile.ptsd")
+        sharedDefaults.set(profileCPTSD,           forKey: "ndprofile.cptsd")
+        sharedDefaults.set(profileDyslexic,        forKey: "ndprofile.dyslexic")
         sharedDefaults.synchronize()
     }
 
     func loadSettings() {
-        profileADHD   = UserDefaults.standard.bool(forKey: "ndprofile.adhd")
-        profileAutism = UserDefaults.standard.object(forKey: "ndprofile.autism") == nil
+        profileADHD     = UserDefaults.standard.bool(forKey: "ndprofile.adhd")
+        profileAutism   = UserDefaults.standard.object(forKey: "ndprofile.autism") == nil
             ? true : UserDefaults.standard.bool(forKey: "ndprofile.autism")
-        profileAUDHD  = UserDefaults.standard.bool(forKey: "ndprofile.audhd")
-        profilePTSD   = UserDefaults.standard.bool(forKey: "ndprofile.ptsd")
-        profileCPTSD  = UserDefaults.standard.bool(forKey: "ndprofile.cptsd")
+        profileAUDHD    = UserDefaults.standard.bool(forKey: "ndprofile.audhd")
+        profilePTSD     = UserDefaults.standard.bool(forKey: "ndprofile.ptsd")
+        profileCPTSD    = UserDefaults.standard.bool(forKey: "ndprofile.cptsd")
+        profileDyslexic = UserDefaults.standard.bool(forKey: "ndprofile.dyslexic")
         syncProfileSettings()
         let storedLevel = sharedDefaults.string(forKey: rewriteLevelKey) ?? "Medium"
         rewriteLevel = ["Light", "Medium", "Strong"].contains(storedLevel) ? storedLevel : "Medium"

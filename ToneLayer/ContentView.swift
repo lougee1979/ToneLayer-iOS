@@ -13,6 +13,8 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var appModel = AppModel()
+    @StateObject private var hume = HumeEVIClient()
+    @StateObject private var schedule = ScheduleProvider()
 
     var body: some View {
         TabView {
@@ -20,6 +22,8 @@ struct ContentView: View {
                 .tabItem { Label("Compose", systemImage: "square.and.pencil") }
             DecoderView()
                 .tabItem { Label("Decode", systemImage: "eye.circle.fill") }
+            InsightView()
+                .tabItem { Label("TonalInsight", systemImage: "waveform") }
             PlanView()
                 .tabItem { Label("Plan", systemImage: "checklist") }
             HistoryView()
@@ -28,11 +32,19 @@ struct ContentView: View {
                 .tabItem { Label("Settings", systemImage: "slider.horizontal.3") }
         }
         .environmentObject(appModel)
+        .environmentObject(hume)
         .tint(Color.brandVioletDark)
         .onAppear {
             appModel.loadSettings()
             appModel.loadLog()
             appModel.loadOutcomeEvents()
+            Task {
+                await schedule.refresh()
+                hume.scheduleContext = schedule.agendaText
+            }
+        }
+        .onChange(of: schedule.agendaText) { _, newValue in
+            hume.scheduleContext = newValue
         }
         .sheet(isPresented: $appModel.showingExportSheet) {
             ActivityView(activityItems: appModel.activityItems)

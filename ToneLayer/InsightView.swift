@@ -10,7 +10,7 @@
 import SwiftUI
 
 struct InsightView: View {
-    @StateObject private var hume = HumeEVIClient()
+    @EnvironmentObject private var hume: HumeEVIClient
     @Environment(\.dismiss) private var dismiss
     @State private var liveTyping = false
     var onUseTranscript: ((String) -> Void)? = nil
@@ -38,17 +38,27 @@ struct InsightView: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(hume.isConnected ? Color.brandGreen : .secondary)
 
-                        Button {
-                            hume.isConnected ? hume.disconnect() : hume.connect()
-                        } label: {
-                            Label(hume.isConnected ? "Stop Listening" : "Start Listening",
-                                  systemImage: hume.isConnected ? "stop.circle.fill" : "mic.circle.fill")
-                                .font(.title3.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(hume.isConnected ? .red : .brandGreen)
+                        // Hold-to-talk rather than continuous listening —
+                        // recording is bounded to exactly when the button
+                        // is held, which sidesteps iOS's weaker echo
+                        // cancellation mistaking ambient noise (e.g. a fan)
+                        // for speech, instead of requiring more DSP tuning.
+                        Label(hume.isConnected ? "Listening\u{2026} release to stop" : "Hold to talk",
+                              systemImage: hume.isConnected ? "waveform" : "mic.circle.fill")
+                            .font(.title3.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .foregroundStyle(.white)
+                            .background(hume.isConnected ? Color.red : Color.brandGreen)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .contentShape(Rectangle())
+                            .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
+                                if pressing {
+                                    if !hume.isConnected { hume.connect() }
+                                } else {
+                                    if hume.isConnected { hume.disconnect() }
+                                }
+                            }, perform: {})
 
                         if onLiveTranscriptUpdate != nil {
                             Toggle(isOn: $liveTyping) {

@@ -10,6 +10,7 @@
 import Foundation
 import Combine
 import AVFoundation
+import ToneLayerCore
 
 @MainActor
 final class HumeEVIClient: NSObject, ObservableObject {
@@ -22,8 +23,18 @@ final class HumeEVIClient: NSObject, ObservableObject {
     @Published var topEmotions: [(name: String, score: Double)] = []
     @Published var rawLog: [String] = []
 
-    private let apiKey    = "iGJur1J59jimvanwNivAtw1tCyUkEKZA77j9MUSHTApvUwUN"
-    private let secretKey = "IMcIJVkuFypeG3x3LQHOy1NmRvZYoRTg1EGVAyodQNCPQ6GGO8HW9TEG0098az2Z"
+    /// Plain-text summary of the rest of the user's day (from
+    /// `ScheduleProvider`), included in the system prompt so TonalInsight
+    /// is aware of upcoming obligations and can speak to them.
+    var scheduleContext = ""
+
+    private let apiKey    = Secrets.humeApiKey
+    private let secretKey = Secrets.humeSecretKey
+
+    /// EVI config with longer pauses before EVI assumes the user is done
+    /// talking, and a higher bar before EVI yields to an interruption —
+    /// tuned so EVI doesn't cut the user off mid-thought.
+    private let configId = "b65c1f98-4dc7-404f-a6de-30ca963ced1d"
 
     private var webSocketTask: URLSessionWebSocketTask?
     private var urlSession: URLSession?
@@ -44,7 +55,44 @@ final class HumeEVIClient: NSObject, ObservableObject {
 
     private let sendSampleRate: Double = 48_000
 
-    func connect() {
+    /// Most recent mic input level (RMS, out of 32767 for 16-bit audio),
+    /// updated continuously from the audio tap (which runs on a real-time
+    /// audio thread, hence `nonisolated(unsafe)` — there's only ever one
+    /// tap callback in flight at a time, so plain reads/writes are safe).
+    private nonisolated(unsafe) var recentMicRMS: Double = 0
+
+    /// Slow-adapting estimate of the ambient noise floor (RMS). Tracks
+    /// downward quickly (so quiet moments are picked up fast) but rises
+    /// slowly, so it settles near the level of steady background noise
+    /// (e.g. a fan or AC) without being dragged up by brief loud sounds
+    /// like speech.
+    private nonisolated(unsafe) var noiseFloorRMS: Double = 0
+
+    /// How far above the ambient noise floor the mic needs to read before a
+    /// sound is treated as the user actually talking (as opposed to steady
+    /// background noise like a fan/AC).
+    private let interruptionMargin: Double = 500
+
+    /// Current gain applied to outgoing mic audio. Smoothly eases between
+    /// `1.0` (pass through normally — looks like real speech) and
+    /// `ambientGain` (steady background noise only), so Hume's own
+    /// voice-activity detection doesn't fire `user_interruption` just
+    /// because a fan is running, while real speech still gets through at
+    /// full volume and can interrupt normally. Kept above zero (rather than
+    /// fully muting) so Hume still sees a continuous, natural noise floor —
+    /// literal digital silence previously confused its end-of-turn
+    /// detection.
+    private nonisolated(unsafe) var currentGateGain: Double = 1.0
+    private let ambientGain: Double = 0.15
+
+    /// - Parameters:
+    ///   - systemPromptOverride: Replaces the default TonalInsight companion
+    ///     persona for this session — used for narrowly-scoped listening
+    ///     tasks (e.g. capturing a spoken edit to a rewrite) that shouldn't
+    ///     carry the companion's full check-in/coaching behavior.
+    ///   - openingLine: Replaces the random TonalInsight opener with a
+    ///     specific line appropriate to the override prompt's task.
+    func connect(systemPromptOverride: String? = nil, openingLine: String? = nil) {
         guard webSocketTask == nil, !isConnecting else { return }
         isConnecting = true
 
@@ -73,7 +121,7 @@ final class HumeEVIClient: NSObject, ObservableObject {
             }
 
             do {
-                try await sendSessionSettings()
+                try await sendSessionSettings(systemPromptOverride: systemPromptOverride, openingLine: openingLine)
                 try startMicrophone()
                 isConnected = true
                 statusText = "Listening\u{2026}"
@@ -82,6 +130,34 @@ final class HumeEVIClient: NSObject, ObservableObject {
                 disconnect(reason: "Error: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Short, formatted summary of the currently detected vocal tones (e.g.
+    /// "Anxiety 62%, Tension 40%"), suitable for passing to the server as
+    /// the `tone` field alongside a refine instruction — mirrors
+    /// `HumeToneClient.toneSummary` in the keyboard extension.
+    var toneSummary: String {
+        guard !topEmotions.isEmpty else { return "" }
+        return topEmotions
+            .prefix(3)
+            .map { "\($0.name) \(Int($0.score * 100))%" }
+            .joined(separator: ", ")
+    }
+
+    /// System prompt for a narrow "listen to a spoken edit" session, used by
+    /// the Composer's refine box instead of the full TonalInsight companion
+    /// persona. Kept terse on purpose — this is a quick handoff to capture
+    /// what the user wants changed (plus their vocal tone), not a
+    /// conversation; the actual interpretation of intent happens server-side
+    /// in `/refine`.
+    static func refineDiscussionPrompt(rewriteContext: String) -> String {
+        """
+        You are a quick, low-key listening assistant inside ToneLayer, a communication app for neurodivergent people. The user just got this rewritten message back:
+
+        "\(rewriteContext)"
+
+        They want to describe a correction or edit to it. Listen closely — they may describe what's wrong conversationally rather than issue a command, and may reuse a word from the rewrite that's actually the mistake while explaining it (e.g. saying "that should be her" while pointing out a "her" that needs to change) — don't treat their words as literal dictation, understand what they mean. If what they want is genuinely unclear, ask ONE short clarifying question. Otherwise, just briefly acknowledge you understood in a single short sentence (e.g. "Got it, fixing that.") and stop. Do not chat, coach, offer opinions, or ramble — this is a quick handoff, not a conversation.
+        """
     }
 
     func disconnect(reason: String = "Not connected") {
@@ -109,9 +185,15 @@ final class HumeEVIClient: NSObject, ObservableObject {
         var components = URLComponents(string: "wss://api.hume.ai/v0/evi/chat")!
         if useOAuth {
             let token = try await fetchAccessToken()
-            components.queryItems = [URLQueryItem(name: "access_token", value: token)]
+            components.queryItems = [
+                URLQueryItem(name: "access_token", value: token),
+                URLQueryItem(name: "config_id", value: configId)
+            ]
         } else {
-            components.queryItems = [URLQueryItem(name: "apiKey", value: apiKey)]
+            components.queryItems = [
+                URLQueryItem(name: "apiKey", value: apiKey),
+                URLQueryItem(name: "config_id", value: configId)
+            ]
         }
 
         let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
@@ -155,10 +237,15 @@ final class HumeEVIClient: NSObject, ObservableObject {
 
     // MARK: - Audio session
 
+    /// `.voiceChat` mode enables the system's built-in echo cancellation
+    /// between the mic input and whatever audio is playing through the
+    /// speaker, so the mic can stay live (and pick up the user speaking)
+    /// while EVI's response is playing — without hearing EVI's own voice
+    /// as new "user" input. This is what makes barge-in interruption work.
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
+            try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP, .allowBluetoothA2DP])
             try session.setActive(true)
         } catch {
             appendLog("Audio session error: \(error.localizedDescription)")
@@ -167,12 +254,29 @@ final class HumeEVIClient: NSObject, ObservableObject {
 
     // MARK: - Outgoing messages
 
-    private func sendSessionSettings() async throws {
+    private var defaultCompanionPrompt: String {
+        """
+        You are TonalInsight, a warm, conversational voice companion inside ToneLayer, an app built for neurodivergent people (ADHD, Autism, PTSD/CPTSD). The person just opened this to talk something through or check in. Keep responses short — a sentence or two, not a lecture. Ask one open question at a time. Reflect back what you're hearing, help them think out loud, and gently offer to help problem-solve only if they seem to want that. Warm, casual, non-clinical tone — like a thoughtful friend, not a therapist.
+
+        You're also their executive-function support for the day. You have read-only awareness of their calendar and current location (below). The user has ADHD, so be assertive — not just a passing mention — about anything coming up soon: bring it up near the start of the conversation, and if it's close or time-sensitive, don't be shy about repeating or re-emphasizing it before moving on. Mention travel time if it's given, so they know when they need to leave by. Then return to whatever they actually want to talk about.
+
+        You also carry the grounded, unhurried wisdom of a Buddhist meditation teacher and a Silva Method instructor — you know breathwork, mindfulness, visualization, and alpha-state relaxation techniques well enough to teach them simply. The user wants you to be persistent (kindly, not naggy) about encouraging a short daily meditation practice, framed as rewiring the brain through repetition. Look for natural openings to suggest a brief practice (even just sixty seconds of breathing), and if they brush it off, let it go gracefully but bring it up again another time — gentle persistence, not pressure.
+
+        Today's remaining schedule:
+        \(scheduleContext.isEmpty ? "No schedule information available." : scheduleContext)
+        """
+    }
+
+    private let defaultOpeners = [
+        "Hey, I'm here. What's on your mind, or do you just want to check in for a sec?",
+        "Hi there. How are you doing right now \u{2014} anything you want to talk through?",
+        "Hey. I'm listening — want to think something out loud, or just say how today's going?"
+    ]
+
+    private func sendSessionSettings(systemPromptOverride: String? = nil, openingLine: String? = nil) async throws {
         let settings: [String: Any] = [
             "type": "session_settings",
-            "system_prompt": """
-            You are TonalInsight, a warm, conversational voice companion inside ToneLayer, an app built for neurodivergent people (ADHD, Autism, PTSD/CPTSD). The person just opened this to talk something through or check in. Keep responses short — a sentence or two, not a lecture. Ask one open question at a time. Reflect back what you're hearing, help them think out loud, and gently offer to help problem-solve only if they seem to want that. Warm, casual, non-clinical tone — like a thoughtful friend, not a therapist.
-            """,
+            "system_prompt": systemPromptOverride ?? defaultCompanionPrompt,
             "audio": [
                 "channels": 1,
                 "encoding": "linear16",
@@ -183,14 +287,10 @@ final class HumeEVIClient: NSObject, ObservableObject {
 
         // Have the assistant speak first so the session feels like an
         // invitation to talk, not a silent recorder waiting for input.
-        let openers = [
-            "Hey, I'm here. What's on your mind, or do you just want to check in for a sec?",
-            "Hi there. How are you doing right now \u{2014} anything you want to talk through?",
-            "Hey. I'm listening — want to think something out loud, or just say how today's going?"
-        ]
+        let opener = openingLine ?? (defaultOpeners.randomElement() ?? defaultOpeners[0])
         try await sendJSON([
             "type": "assistant_input",
-            "text": openers.randomElement() ?? openers[0]
+            "text": opener
         ])
     }
 
@@ -234,6 +334,36 @@ final class HumeEVIClient: NSObject, ObservableObject {
 
             guard let channelData = outBuffer.int16ChannelData else { return }
             let frameCount = Int(outBuffer.frameLength)
+
+            var sumSquares: Double = 0
+            for i in 0..<frameCount {
+                let sample = Double(channelData[0][i])
+                sumSquares += sample * sample
+            }
+            let rms = frameCount > 0 ? (sumSquares / Double(frameCount)).squareRoot() : 0
+
+            self.recentMicRMS = rms
+            if self.noiseFloorRMS == 0 || rms < self.noiseFloorRMS {
+                self.noiseFloorRMS = rms
+            } else {
+                self.noiseFloorRMS += (rms - self.noiseFloorRMS) * 0.01
+            }
+
+            // Ease the outgoing gain toward full volume if this sounds like
+            // real speech (well above the ambient floor), or toward
+            // `ambientGain` if it's just steady background noise — so Hume
+            // doesn't mistake a loud fan for the user talking, but a real
+            // voice still comes through (and can interrupt) at full volume.
+            let targetGain = rms >= self.noiseFloorRMS + self.interruptionMargin ? 1.0 : self.ambientGain
+            self.currentGateGain += (targetGain - self.currentGateGain) * 0.15
+
+            if self.currentGateGain < 0.999 {
+                for i in 0..<frameCount {
+                    let attenuated = Double(channelData[0][i]) * self.currentGateGain
+                    channelData[0][i] = Int16(max(-32768, min(32767, attenuated)))
+                }
+            }
+
             let data = Data(bytes: channelData[0], count: frameCount * MemoryLayout<Int16>.size)
             let base64 = data.base64EncodedString()
 
@@ -296,6 +426,21 @@ final class HumeEVIClient: NSObject, ObservableObject {
                 assistantText = content
                 appendLog("EVI: \(content)")
             }
+        case "user_interruption":
+            // EVI thinks the user started talking while it was still
+            // speaking. Only honor this if the mic was reading meaningfully
+            // louder than the current ambient noise floor — otherwise it's
+            // just steady background noise (fan/AC) or AEC residue, not
+            // real speech, so keep playing.
+            if recentMicRMS >= noiseFloorRMS + interruptionMargin {
+                audioPlayer?.stop()
+                audioPlayer = nil
+                audioQueue.removeAll()
+                isSpeaking = false
+                appendLog("Interrupted")
+            } else {
+                appendLog("Ignored interruption (rms \(Int(recentMicRMS)), floor \(Int(noiseFloorRMS)))")
+            }
         case "error":
             let message = json["message"] as? String ?? "Unknown error"
             statusText = "Error: \(message)"
@@ -327,13 +472,9 @@ final class HumeEVIClient: NSObject, ObservableObject {
     private func playNextAudio() {
         guard !audioQueue.isEmpty else {
             isSpeaking = false
-            resumeMicrophone()
             return
         }
-        if !isSpeaking {
-            isSpeaking = true
-            pauseMicrophone()
-        }
+        isSpeaking = true
         let data = audioQueue.removeFirst()
         do {
             let player = try AVAudioPlayer(data: data)
@@ -344,18 +485,6 @@ final class HumeEVIClient: NSObject, ObservableObject {
             appendLog("Playback error: \(error.localizedDescription)")
             playNextAudio()
         }
-    }
-
-    // MARK: - Turn-taking
-
-    private func pauseMicrophone() {
-        guard audioEngine.isRunning else { return }
-        audioEngine.pause()
-    }
-
-    private func resumeMicrophone() {
-        guard isConnected, !audioEngine.isRunning else { return }
-        try? audioEngine.start()
     }
 }
 
