@@ -1419,33 +1419,32 @@ struct KeyboardView: View {
     /// cursor, which is exactly why rewriting only picked up "the very
     /// last bit" of a pasted message.
     ///
-    /// The fix: walk the cursor backward in small steps, and at each new
-    /// position take only the *last* `step` characters of the freshly-read
-    /// window — since we only moved back by `step`, those trailing
-    /// characters are exactly the newly-revealed gap between this window
-    /// and the text already captured, so prepending them (rather than the
-    /// whole window, which mostly re-covers ground we already have)
-    /// reconstructs the full text without duplication. `step` is kept
-    /// small relative to the window's real (undocumented) size so a
-    /// single jump can never skip over unread text — an earlier version
-    /// of this used a large jump and a "window got longer" stopping
-    /// condition that assumed the window keeps growing the further back
-    /// you go; it doesn't, so that version only ever captured one shifted
-    /// window's worth of text before stopping. Finally, the cursor is
-    /// restored to exactly where it started.
+    /// The fix: walk the cursor backward, prepending each freshly-read
+    /// window and moving back by exactly that window's own reported
+    /// length — never a fixed guessed amount. `adjustTextPosition` silently
+    /// clamps near the start of the document with no way to detect that it
+    /// happened; an earlier version moved back by a fixed guessed `step`
+    /// and always counted the full `step` toward the eventual cursor
+    /// restore, so on any field shorter than a clean multiple of `step`
+    /// the final restore overshot past the original cursor position —
+    /// landing later edits in the wrong place in the document. Using each
+    /// window's own length as the move amount guarantees the move can
+    /// never be clamped short, so the running total always matches the
+    /// real distance traveled. Finally, the cursor is restored to exactly
+    /// where it started.
     private func seedTypedTextFromProxy() {
         guard keyboardTypedText.isEmpty else { return }
         let proxy = inputVC.textDocumentProxy
         let after = proxy.documentContextAfterInput ?? ""
-        var accumulated = proxy.documentContextBeforeInput ?? ""
+
+        var accumulated = ""
         var movedBack = 0
-        let step = 15
         for _ in 0..<250 {
-            proxy.adjustTextPosition(byCharacterOffset: -step)
-            movedBack += step
-            guard let newWindow = proxy.documentContextBeforeInput, !newWindow.isEmpty else { break }
-            accumulated = String(newWindow.suffix(step)) + accumulated
-            if newWindow.count < step { break }
+            guard let window = proxy.documentContextBeforeInput, !window.isEmpty else { break }
+            accumulated = window + accumulated
+            proxy.adjustTextPosition(byCharacterOffset: -window.count)
+            movedBack += window.count
+            if window.count < 15 { break }
         }
         if movedBack > 0 {
             proxy.adjustTextPosition(byCharacterOffset: movedBack)
@@ -1481,6 +1480,9 @@ struct KeyboardView: View {
             if haveReliableTyped {
                 full = typedTrim
                 totalToDelete = typed.count
+            } else if let clip = pasteboardFullText(before: before, after: after) {
+                full = clip.trimmingCharacters(in: .whitespacesAndNewlines)
+                totalToDelete = clip.count
             } else {
                 let scanned = await captureFullDocument(proxy)
                 full = scanned.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1547,6 +1549,43 @@ struct KeyboardView: View {
         }
     }
 
+    /// Tries the clipboard as a fast, reliable stand-in for walking the cursor
+    /// through `documentContextBeforeInput` when the field's text didn't come
+    /// from typing on this keyboard (i.e. it was pasted). Reading
+    /// `UIPasteboard.general.string` triggers iOS's own "pasted from" banner —
+    /// that's intentional platform behavior telling the user their clipboard
+    /// was read, not something to route around. Only trusted when it verifiably
+    /// matches what's on screen (cursor at the true end, and the clipboard
+    /// string's tail lines up with the visible window), so stale or unrelated
+    /// clipboard content is never mistaken for the field's contents.
+    ///
+    /// The match is done on a "smart punctuation" normalized copy of both
+    /// strings, not the raw text — many host apps auto-convert straight
+    /// quotes/dashes into curly/em variants the instant text is pasted, so
+    /// the live field can differ from the raw clipboard string by a few
+    /// typographic characters even though it's the same content. Comparing
+    /// literally would reject a real match and fall back to the weaker
+    /// cursor-walk unnecessarily. The original (unnormalized) clipboard
+    /// string is still what gets returned and sent for rewriting.
+    private func pasteboardFullText(before: String, after: String) -> String? {
+        guard after.isEmpty, before.count >= 20 else { return nil }
+        guard let clip = UIPasteboard.general.string else { return nil }
+        guard normalizedForMatch(clip).hasSuffix(normalizedForMatch(before)) else { return nil }
+        return clip
+    }
+
+    private func normalizedForMatch(_ s: String) -> String {
+        var result = s
+        let substitutions: [Character: Character] = [
+            "\u{2018}": "'", "\u{2019}": "'",   // curly single quotes -> straight
+            "\u{201C}": "\"", "\u{201D}": "\"", // curly double quotes -> straight
+            "\u{2013}": "-", "\u{2014}": "-",   // en/em dash -> hyphen
+            "\u{2026}": "."                      // ellipsis char -> period (approx)
+        ]
+        result = String(result.map { substitutions[$0] ?? $0 })
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// iOS hands a keyboard only the text near the cursor — for a long message
     /// that's just the back end, which is why a rewrite could miss the start.
     /// This reads the WHOLE field: move the cursor to the end, then read backward
@@ -1559,7 +1598,7 @@ struct KeyboardView: View {
         func move(_ n: Int) async {
             guard n != 0 else { return }
             await MainActor.run { proxy.adjustTextPosition(byCharacterOffset: n) }
-            try? await Task.sleep(nanoseconds: 12_000_000)
+            try? await Task.sleep(nanoseconds: 20_000_000)
         }
 
         // 1) Move to the very end so every character is "before" the cursor.
@@ -1570,15 +1609,29 @@ struct KeyboardView: View {
             after = await readAfter()
             steps += 1
         }
-        // 2) Read backward, prepending each new window. Stop when the window
-        //    stops changing (some apps cap context and won't scroll) so we can't
-        //    loop forever or duplicate text.
+        // 2) Read backward, prepending each new window. An unchanged window can
+        //    mean two different things: we've truly reached the start of the
+        //    document, or (especially on a real device, where the keyboard
+        //    extension and host app are separate processes talking over IPC)
+        //    the host app just hasn't caught up to the last `adjustTextPosition`
+        //    call yet. Treating the first unchanged read as "reached the start"
+        //    is what caused real messages to get cut down to just the last
+        //    sentence — this instead gives the host app a few chances, with a
+        //    growing delay, before concluding the window is genuinely stuck.
         var full = ""
         var lastWindow = ""
+        var stall = 0
         steps = 0
         while steps < 800 {
             let window = await readBefore()
-            if window.isEmpty || window == lastWindow { break }
+            if window.isEmpty { break }
+            if window == lastWindow {
+                stall += 1
+                if stall >= 5 { break }
+                try? await Task.sleep(nanoseconds: UInt64(stall) * 60_000_000)
+                continue
+            }
+            stall = 0
             full = window + full
             lastWindow = window
             await move(-window.count)
