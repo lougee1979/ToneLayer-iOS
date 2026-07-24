@@ -24,6 +24,10 @@ struct ComposerView: View {
     @State private var refineInstruction   = ""
     @State private var refineTone          = ""
     @State private var isRefining          = false
+    @State private var refineAttemptCount  = 0
+    @State private var showingEscalation   = false
+    @State private var reviewTranscript: [CompanionMessage] = []
+    @State private var showingTranscriptReview = false
 
     private let router = RewriteRouter()
     private let refineClient = RefineClient()
@@ -88,6 +92,21 @@ struct ComposerView: View {
                 appModel.sharedDefaults.synchronize()
             })
             .environmentObject(hume)
+        }
+        .sheet(isPresented: $showingEscalation) {
+            EscalationConversationView(
+                originalText: composerOriginal,
+                currentRewrite: composerNT,
+                profile: appModel.activeProfileLabel,
+                onAccept: { finalText, transcript in
+                    acceptEscalation(finalText: finalText, transcript: transcript)
+                },
+                onCancel: {}
+            )
+        }
+        .sheet(isPresented: $showingTranscriptReview) {
+            TranscriptReviewView(transcript: reviewTranscript)
+                .environmentObject(appModel)
         }
     }
 
@@ -324,6 +343,15 @@ struct ComposerView: View {
     /// the words, and both get sent to /refine together.
     private var refineRow: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if refineAttemptCount >= 2 {
+                Button {
+                    showingEscalation = true
+                } label: {
+                    Label("Still not right? Talk it through", systemImage: "bubble.left.and.bubble.right")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            } else {
             HStack(spacing: 8) {
                 TextField("Not quite right? Tell it what to fix\u{2026}", text: $refineInstruction)
                     .textFieldStyle(.roundedBorder)
@@ -345,6 +373,7 @@ struct ComposerView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(isRefining || hume.isConnected || refineInstruction.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
             }
             if hume.isConnected {
                 VStack(alignment: .leading, spacing: 4) {
@@ -473,6 +502,7 @@ struct ComposerView: View {
         composerExplanation = ""
         selectedOutput = "NT version"
         feedbackSubmitted = false
+        refineAttemptCount = 0
         Task {
             do {
                 // The app always routes to the cloud, regardless of level —
@@ -526,11 +556,28 @@ struct ComposerView: View {
                     composerGrammar = result.grammarOnly.isEmpty ? composerGrammar : result.grammarOnly
                     composerSource = result.source
                     if !result.explanation.isEmpty { composerExplanation = result.explanation }
+                    refineAttemptCount += 1
                 }
             } catch {
                 await MainActor.run { isRefining = false; composerStatus = error.localizedDescription }
             }
         }
+    }
+
+    /// Called when the user taps "Use this" on a reply inside the
+    /// escalation conversation (`EscalationConversationView`). The accepted
+    /// text becomes the draft, same as "Replace Draft" does for a normal
+    /// rewrite, and the conversation that produced it is queued for the
+    /// scrub-and-review export step — never for ordinary rewrites/refines.
+    private func acceptEscalation(finalText: String, transcript: [CompanionMessage]) {
+        composerNT = finalText
+        appModel.testText = finalText
+        appModel.sharedDefaults.set(finalText, forKey: "testBoxFullText")
+        appModel.sharedDefaults.synchronize()
+        composerStatus = "Draft replaced with the worked-out rewrite"
+        refineAttemptCount = 0
+        reviewTranscript = transcript
+        showingTranscriptReview = true
     }
 
     private func saveLog(original: String, rewritten: String, explanation: String, distortions: [String]) {
