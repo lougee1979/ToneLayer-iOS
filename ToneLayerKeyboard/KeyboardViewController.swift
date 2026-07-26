@@ -97,6 +97,55 @@ final class DictationManager: ObservableObject {
     }
 }
 
+// MARK: - Native key styling
+
+/// The subtle bottom-edge "keycap" shadow every native iOS keyboard key
+/// has, which this custom keyboard was missing entirely (flat, shadowless
+/// keys read as obviously custom-drawn rather than a real keyboard).
+extension View {
+    func keycapShadow() -> some View {
+        shadow(color: Color.black.opacity(0.30), radius: 0, x: 0, y: 1)
+    }
+
+    /// Extends a key's invisible tap target out to the midpoint of the
+    /// gaps around it, so a tap landing in the space *between* two keys
+    /// still registers on the nearer one — matching Apple's own keyboard,
+    /// which has no dead space anywhere in the key area. Without this, a
+    /// tap that lands a few points off-center (routine at normal typing
+    /// speed) falls into the gap between keys and silently drops, which
+    /// is what reads as "the keyboard missed my letter."
+    func keyTapTarget(h: CGFloat = 2.5, v: CGFloat = 3) -> some View {
+        self
+            .padding(.horizontal, h)
+            .padding(.vertical, v)
+            .contentShape(Rectangle())
+            .padding(.horizontal, -h)
+            .padding(.vertical, -v)
+    }
+}
+
+/// The pointed "speech bubble" shape native iOS uses for the enlarged
+/// key-press preview popup — a rounded rectangle with a small triangular
+/// tail pointing down at the key being pressed, instead of a plain
+/// rounded rectangle floating above it.
+struct KeyPopupBubble: Shape {
+    func path(in rect: CGRect) -> Path {
+        let cornerRadius: CGFloat = 8
+        let tailWidth: CGFloat = 16
+        let tailHeight: CGFloat = 7
+        let bodyRect = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height - tailHeight)
+
+        var path = Path(roundedRect: bodyRect, cornerRadius: cornerRadius, style: .continuous)
+        var tail = Path()
+        tail.move(to: CGPoint(x: rect.midX - tailWidth / 2, y: bodyRect.maxY))
+        tail.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        tail.addLine(to: CGPoint(x: rect.midX + tailWidth / 2, y: bodyRect.maxY))
+        tail.closeSubpath()
+        path.addPath(tail)
+        return path
+    }
+}
+
 // MARK: - Keyboard metrics (rotation-safe width)
 
 /// The keyboard's current width, published from the view controller. A
@@ -137,7 +186,13 @@ class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedback {
     /// otherwise the keyboard ends up consuming nearly the whole screen.
     private func requestedHeight(isLandscape: Bool) -> CGFloat {
         let base: CGFloat
-        if UIDevice.current.userInterfaceIdiom == .pad { base = 340 }
+        // 5 rows of real-Apple-sized (~70pt, square) keys is ~373pt alone
+        // (see `keySize`), plus ~150pt/~125pt of toolbar/action-bar/
+        // suggestion-bar chrome above them (portrait adds the teaching
+        // strip, landscape hides it) — computed and verified against the
+        // actual key/row math, not guessed, after the previous estimate
+        // came in short and would have clipped the bottom row.
+        if UIDevice.current.userInterfaceIdiom == .pad { base = isLandscape ? 510 : 535 }
         else { base = isLandscape ? 250 : 350 }
         // The rewrite-result screen keeps the on-screen keys visible
         // (needed to type into the "Refine" field, which — being a text
@@ -267,6 +322,7 @@ struct KeyboardView: View {
     // On-device predictive text + spelling suggestions. Apple's UITextChecker
     // runs entirely on the phone, so nothing you type leaves the device for this.
     @State private var suggestions: [String] = []
+    @State private var personalWordModel = PersonalizedWordModel()
     @StateObject private var dictation     = DictationManager()
     private let textChecker = UITextChecker()
     private let spellChecker = UITextChecker()
@@ -388,7 +444,7 @@ struct KeyboardView: View {
 
     private var mainPanel: some View {
         VStack(spacing: 2) {
-            if !(isLandscape && !isPad) {
+            if !isLandscape {
                 teachingStrip
             }
             if !explanation.isEmpty {
@@ -400,8 +456,8 @@ struct KeyboardView: View {
             Text(dictation.isRecording && !dictation.partialText.isEmpty
                  ? "🎤 " + dictation.partialText
                  : status)
-                .font(.system(size: 10))
-                .foregroundStyle(dictation.isRecording ? Color.primary : Color.secondary)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(dictation.isRecording || !status.isEmpty ? Color.primary : Color.secondary)
                 .frame(maxWidth: .infinity, minHeight: 14, alignment: .leading)
                 .padding(.horizontal, 8)
                 .lineLimit(1)
@@ -449,8 +505,10 @@ struct KeyboardView: View {
     }
 
     /// Predicts likely next words when the user isn't mid-word, so the bar
-    /// always has something in it (like Apple's). Uses a small built-in
-    /// word-pairs table — entirely on-device, nothing leaves the phone.
+    /// always has something in it (like Apple's). Prefers `personalWordModel`
+    /// (built from the user's own past rewrites) over the small built-in
+    /// word-pairs table below — entirely on-device either way, nothing
+    /// leaves the phone.
     private func nextWordSuggestions() -> [String] {
         let before  = inputVC.textDocumentProxy.documentContextBeforeInput ?? ""
         let trimmed = before.trimmingCharacters(in: .whitespaces)
@@ -461,6 +519,12 @@ struct KeyboardView: View {
         let lastWord = String(trimmed.split { $0 == " " || $0 == "\n" }.last ?? "")
             .lowercased()
             .trimmingCharacters(in: CharacterSet(charactersIn: ",;:\"'"))
+        // Personalized (built from this user's own past rewrites) first;
+        // fall back to the generic static table, then the safe defaults —
+        // so suggestions only ever get better as history accumulates,
+        // never regress to "no suggestions" for a new user.
+        let personal = personalWordModel.followers(of: lastWord, limit: 3)
+        if !personal.isEmpty { return personal }
         if let followers = Self.nextWordTable[lastWord], !followers.isEmpty {
             return Array(followers.prefix(3))
         }
@@ -472,7 +536,8 @@ struct KeyboardView: View {
     static let commonWords      = ["the", "to", "and"]
 
     // Small on-device next-word table: previous word -> likely follow-ups.
-    // Crude but private and instant; a learned/on-device-AI model can replace it.
+    // Fallback for words `personalWordModel` hasn't seen yet (new users, or
+    // a word not yet in this person's own rewrite history).
     static let nextWordTable: [String: [String]] = [
         "i": ["am", "have", "think"], "i'm": ["not", "going", "sorry"],
         "you": ["are", "can", "should"], "to": ["the", "be", "do"],
@@ -526,7 +591,7 @@ struct KeyboardView: View {
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 5)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .background(Color.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 6)
@@ -676,7 +741,7 @@ struct KeyboardView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(dictation.isRecording ? Color.red : Color.brandViolet)
                     .frame(width: 26, height: 26)
-                    .glassEffect(.regular.tint((dictation.isRecording ? Color.red : Color.brandViolet).opacity(0.35)).interactive(), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .background((dictation.isRecording ? Color.red : Color.brandViolet).opacity(0.22), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .accessibilityLabel(dictation.isRecording ? "Stop recording" : "Speak your correction")
             .accessibilityHint("Lets you say what to fix instead of typing it — your tone while speaking helps the correction land right.")
@@ -773,7 +838,7 @@ struct KeyboardView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 5)
                         .foregroundStyle(level == l ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
-                        .glassEffect(level == l ? .regular.tint(Color.brandVioletDark).interactive() : .regular.interactive(), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .background(level == l ? Color.brandVioletDark : Color.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(l) rewrite strength")
@@ -787,7 +852,7 @@ struct KeyboardView: View {
                 }
                 .frame(width: 34, height: 28)
                 .foregroundStyle(.white)
-                .glassEffect(.regular.tint(Color.brandVioletDark.opacity(isRewriting ? 0.55 : 1)).interactive(), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .background(Color.brandVioletDark.opacity(isRewriting ? 0.55 : 1), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .disabled(isRewriting || isAnalyzing)
             .accessibilityLabel(isRewriting ? "Rewriting" : "Rewrite")
@@ -799,7 +864,7 @@ struct KeyboardView: View {
                 }
                 .frame(width: 34, height: 28)
                 .foregroundStyle(.white)
-                .glassEffect(.regular.tint(Color(red: 0.55, green: 0.20, blue: 0.78).opacity(isAnalyzing ? 0.55 : 1)).interactive(), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .background(Color(red: 0.55, green: 0.20, blue: 0.78).opacity(isAnalyzing ? 0.55 : 1), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .disabled(isRewriting || isAnalyzing)
             .accessibilityLabel(isAnalyzing ? "Analyzing" : "Analyze")
@@ -814,7 +879,7 @@ struct KeyboardView: View {
                     .font(.system(size: 13))
                     .foregroundStyle(dictation.isRecording ? Color.red : Color.brandViolet)
                     .frame(width: 30, height: 28)
-                    .glassEffect(.regular.tint((dictation.isRecording ? Color.red : Color.brandViolet).opacity(0.35)).interactive(), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .background((dictation.isRecording ? Color.red : Color.brandViolet).opacity(0.22), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .accessibilityLabel(dictation.isRecording ? "Stop recording" : "Start voice dictation")
             .accessibilityHint(dictation.isRecording ? "Stops listening and types what you said." : "Starts listening and types what you say.")
@@ -826,7 +891,7 @@ struct KeyboardView: View {
             } label: {
                 Image(systemName: "doc.on.clipboard").font(.system(size: 12))
                     .frame(width: 30, height: 28)
-                    .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .background(Color.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .accessibilityLabel("Paste")
             .accessibilityHint("Inserts the text you last copied.")
@@ -834,20 +899,40 @@ struct KeyboardView: View {
         .padding(.horizontal, 6)
     }
 
-    /// Letter keys are square and fill the available width edge-to-edge,
-    /// matching Apple's keyboard — capped so keys don't get oversized on
-    /// the largest iPads in landscape.
+    /// Letter keys are square — measured directly off a real iPad running
+    /// Apple's own keyboard (~70pt). Apple reaches that size by filling
+    /// the screen width with MORE columns, not by stretching fewer, wider
+    /// keys — dividing the same width by only 10 (as a plain letter row
+    /// would) badly overshoots the real size on anything 12.9"+. Capped
+    /// near that measured size so landscape's extra width (see
+    /// `isLandscape`) doesn't grow the keys — and with them the whole
+    /// keyboard's height — without bound; the key block instead centers
+    /// with margins on the sides in landscape, same as real hardware.
+    /// iPhone has much less width to begin with, so "fill the width / 10"
+    /// alone already lands close to Apple's real iPhone size.
     private var keySize: CGFloat {
         guard keyboardWidth > 0 else { return 34 }
-        return min((keyboardWidth - 5 * 9) / 10, 100)
+        guard isPad else { return (keyboardWidth - 5 * 9) / 10 }
+        // The number row is the widest row: "`~" dual + 12 digit/symbol
+        // duals + 1 delete key (1.4x) = 14.4 key-widths, across 13 gaps.
+        // Basing the size on any narrower row would let it overflow past
+        // the screen edge.
+        let widthBased = (keyboardWidth - 13 * 5) / 14.4
+        return min(widthBased, 72)
     }
 
-    /// True once the keyboard's actual size is known and it's wider than
-    /// it is tall — i.e. the device is in landscape. Landscape has much
-    /// less screen height to work with than the fixed height constraint
-    /// assumes for portrait, so several elements shrink or hide to fit.
+    /// True when the device is in landscape. `keyboardHeight` is this
+    /// keyboard view's own small requested height budget (~250-535pt, see
+    /// `requestedHeight`), NOT the device's screen height, so it can
+    /// never be compared against `keyboardWidth` to detect orientation —
+    /// that comparison was always true, in both orientations, which is
+    /// why the keyboard was rendering collapsed to a tiny size. Compare
+    /// against the widest known portrait width per idiom instead —
+    /// landscape is always noticeably wider than that.
     private var isLandscape: Bool {
-        keyboardWidth > 0 && keyboardHeight > 0 && keyboardWidth > keyboardHeight
+        guard keyboardWidth > 0 else { return false }
+        let widestPortraitWidth: CGFloat = isPad ? 1100 : 500
+        return keyboardWidth > widestPortraitWidth
     }
 
     /// iPad and iPhone use different Apple key layouts: iPad puts delete at
@@ -869,7 +954,11 @@ struct KeyboardView: View {
         if !previewText.isEmpty {
             return isPad ? 38 : (isLandscape ? 26 : 30)
         }
-        if isPad { return isLandscape ? 46 : 54 }
+        // Real hardware key size doesn't change when the same iPad rotates
+        // — landscape just has less room for everything else around the
+        // keys (handled by hiding the teaching strip etc.), not smaller
+        // keys. Square: same value as `keySize`.
+        if isPad { return keySize }
         return isLandscape ? 38 : 48
     }
     private var keyAreaWidth: CGFloat { keySize * 10 + 5 * 9 }
@@ -890,18 +979,41 @@ struct KeyboardView: View {
         (keyAreaWidth - 12 * 5 - numberEdgeKeyWidth) / 12
     }
 
-    /// Key size for the letters page's q-row, sized so that those 10 keys
-    /// plus the delete key at the end (next to "p") fill keyAreaWidth —
-    /// matches the Apple keyboard, where delete sits at the end of the
-    /// q-row rather than the z-row.
-    private var letterTopKeySize: CGFloat {
-        (keyAreaWidth - 10 * 5 - letterEdgeKeyWidth) / 10
-    }
+    /// The iPad number row (`compactNumberRow`) is the widest row —
+    /// 13 square keys + a 1.4x delete key across 13 gaps — and `keySize`
+    /// itself is derived from that row's width. Every other iPad letters-
+    /// page row below is built from fewer square keys than that, so its
+    /// non-letter edge keys (Tab, Caps Lock, Return, Shift) are widened to
+    /// exactly absorb the leftover width — the same "solve for the edge key"
+    /// approach `numberEdgeKeyWidth`/`numberTopKeySize` already use for the
+    /// numbers page, and how Apple's own keyboard sizes these keys (they
+    /// aren't a fixed ratio, they're whatever size makes the row flush).
+    ///
+    /// Tab (q-row) and Caps Lock (a-row) both replace exactly one square
+    /// key's worth of that leftover width.
+    private var qRowEdgeKeyWidth: CGFloat { keySize * 1.4 }
+
+    /// Return (a-row, at the far end) absorbs the rest of that row's
+    /// leftover width once `qRowEdgeKeyWidth` (Caps Lock) has taken its share.
+    private var returnKeyWidth: CGFloat { keySize * 2 + 5 }
+
+    /// Each Shift key (z-row, one on each end) takes half of that row's
+    /// leftover width vs. the number row.
+    private var zRowShiftWidth: CGFloat { keySize * 1.7 + 2.5 }
 
     private var keyboardSection: some View {
         HStack(alignment: .top, spacing: 0) {
             Spacer(minLength: 0)
-            centerKeyRows.frame(width: keyboardWidth > 0 ? keyAreaWidth : nil)
+            // iPad's letters page sizes itself from its own uniform-size
+            // keys (see `keySize`/`iPadLetterRows`) rather than being
+            // squeezed into the number-page's `keyAreaWidth` — that width
+            // was based on a 10-column row and is too narrow for the
+            // 12-13-column rows the letters page actually has now.
+            if isPad && !isNumbers {
+                centerKeyRows
+            } else {
+                centerKeyRows.frame(width: keyboardWidth > 0 ? keyAreaWidth : nil)
+            }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
@@ -937,12 +1049,11 @@ struct KeyboardView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 30)
-        .glassEffect(showSuggestions ? .regular : .identity, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(showSuggestions ? Color.white.opacity(0.9) : Color.clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
         .padding(.horizontal, 6)
     }
 
     private var centerKeyRows: some View {
-        GlassEffectContainer(spacing: 5) {
         VStack(spacing: 6) {
             if isNumbers {
                 if isPad {
@@ -979,17 +1090,41 @@ struct KeyboardView: View {
                 }
             } else {
                 if isPad {
-                    // iPad: qwertyuiop on row 1 with delete at the end, and
-                    // shift on both sides of the z-row.
+                    // Apple's iPad keyboard keeps a number row permanently
+                    // visible above the letters — you never need to switch
+                    // to the "123" page just to type a digit — and appends
+                    // extra punctuation keys to the letter rows below.
+                    // Every key here is the same square `keySize`, so
+                    // nothing needs to shrink to make room; each row is
+                    // simply as wide as its own keys need, instead of all
+                    // being squeezed into one shared width.
+                    compactNumberRow
                     HStack(spacing: 5) {
-                        letterRow(["q","w","e","r","t","y","u","i","o","p"], width: letterTopKeySize)
-                        deleteKey(width: letterEdgeKeyWidth)
+                        tabKey(width: qRowEdgeKeyWidth)
+                        letterRow(["q","w","e","r","t","y","u","i","o","p"])
+                        dualCharKey("[", "{", width: keySize)
+                        dualCharKey("]", "}", width: keySize)
+                        dualCharKey("\\", "|", width: keySize)
                     }
-                    letterRow(["a","s","d","f","g","h","j","k","l"]).padding(.horizontal, (keySize + 5) / 2)
                     HStack(spacing: 5) {
-                        shiftKey(width: letterEdgeKeyWidth)
+                        capsLockKey(width: qRowEdgeKeyWidth)
+                        letterRow(["a","s","d","f","g","h","j","k","l"])
+                        dualCharKey(";", ":", width: keySize)
+                        dualCharKey("'", "\"", width: keySize)
+                        modifierKey(
+                            systemImage: "return", width: returnKeyWidth,
+                            accessibilityLabel: "Return",
+                            accessibilityHint: "Inserts a new line."
+                        ) { insertCharacter("\n") }
+                    }
+                    HStack(spacing: 5) {
+                        shiftKey(width: zRowShiftWidth)
+                        dualCharKey("`", "~", width: keySize)
                         letterRow(["z","x","c","v","b","n","m"])
-                        shiftKey(width: letterEdgeKeyWidth)
+                        dualCharKey(",", "<", width: keySize)
+                        dualCharKey(".", ">", width: keySize)
+                        dualCharKey("/", "?", width: keySize)
+                        shiftKey(width: zRowShiftWidth)
                     }
                 } else {
                     // iPhone: plain qwertyuiop on row 1, shift on the left
@@ -1004,33 +1139,56 @@ struct KeyboardView: View {
                     }
                 }
             }
-            HStack(spacing: 5) {
-                modifierKey(
-                    isNumbers ? "ABC" : "123", width: keySize * 1.3,
-                    accessibilityLabel: isNumbers ? "Letters" : "Numbers and symbols",
-                    accessibilityHint: isNumbers ? "Switches back to the letter keys." : "Switches to numbers and symbols."
-                ) {
-                    isNumbers.toggle(); isSymbols = false
-                    if !capsLocked { isShifted = false }
-                    playKeyClick()
+            if isPad {
+                // Matches Apple's iPad bottom row layout: globe, .?123,
+                // dictation mic (ToneLayer's own Hume-powered dictation,
+                // since third-party keyboards can't invoke Apple's system
+                // dictation), space, .?123, then the dismiss-keyboard
+                // chevron. Return already lives at the end of the a-row
+                // above, same as Apple's iPad keyboard.
+                HStack(spacing: 5) {
+                    modifierKey(
+                        systemImage: "globe", width: keySize,
+                        accessibilityLabel: "Next keyboard",
+                        accessibilityHint: "Switches to your other installed keyboards."
+                    ) {
+                        playKeyClick()
+                        inputVC.advanceToNextInputMode()
+                    }
+                    modeSwitchKey
+                    humeMicKey(width: keySize)
+                    spaceKey
+                    modeSwitchKey
+                    hideKeyboardKey(width: keySize)
                 }
-                modifierKey(
-                    systemImage: "globe", width: keySize,
-                    accessibilityLabel: "Next keyboard",
-                    accessibilityHint: "Switches to your other installed keyboards."
-                ) {
-                    playKeyClick()
-                    inputVC.advanceToNextInputMode()
+            } else {
+                HStack(spacing: 5) {
+                    modifierKey(
+                        isNumbers ? "ABC" : "123", width: keySize * 1.3,
+                        accessibilityLabel: isNumbers ? "Letters" : "Numbers and symbols",
+                        accessibilityHint: isNumbers ? "Switches back to the letter keys." : "Switches to numbers and symbols."
+                    ) {
+                        isNumbers.toggle(); isSymbols = false
+                        if !capsLocked { isShifted = false }
+                        playKeyClick()
+                    }
+                    modifierKey(
+                        systemImage: "globe", width: keySize,
+                        accessibilityLabel: "Next keyboard",
+                        accessibilityHint: "Switches to your other installed keyboards."
+                    ) {
+                        playKeyClick()
+                        inputVC.advanceToNextInputMode()
+                    }
+                    spaceKey
+                    modifierKey(".", width: keySize, accessibilityLabel: "Period", accessibilityHint: "Types a period.") { insertCharacter(".") }
+                    modifierKey(
+                        systemImage: "return", width: keySize * 1.6,
+                        accessibilityLabel: "Return",
+                        accessibilityHint: "Inserts a new line."
+                    ) { insertCharacter("\n") }
                 }
-                spaceKey
-                modifierKey(".", width: keySize, accessibilityLabel: "Period", accessibilityHint: "Types a period.") { insertCharacter(".") }
-                modifierKey(
-                    systemImage: "return", width: keySize * 1.6,
-                    accessibilityLabel: "Return",
-                    accessibilityHint: "Inserts a new line."
-                ) { insertCharacter("\n") }
             }
-        }
         }
     }
 
@@ -1179,8 +1337,9 @@ struct KeyboardView: View {
         Text(title).font(.system(size: 18, weight: .regular))
             .frame(width: width ?? keySize, height: keyHeight)
             .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
-            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
-            .contentShape(Rectangle())
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .keycapShadow()
+            .keyTapTarget()
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
@@ -1197,7 +1356,8 @@ struct KeyboardView: View {
                     .font(.system(size: 26, weight: .regular))
                     .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
                     .frame(width: (width ?? keySize) + 14, height: keyHeight + 16)
-                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(Color.white, in: KeyPopupBubble())
+                    .shadow(color: Color.black.opacity(0.25), radius: 4, x: 0, y: 2)
                     .offset(y: -(keyHeight + 12))
                     .allowsHitTesting(false)
                     .transition(.opacity.animation(.easeOut(duration: 0.08)))
@@ -1211,8 +1371,13 @@ struct KeyboardView: View {
         Button(action: action) {
             Text(title).font(.system(size: 12, weight: .semibold))
                 .frame(width: width, height: keyHeight)
-                .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
-                .glassEffect(active ? .regular.tint(Color.brandVioletDark).interactive() : .regular.interactive(), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+                // Apple's iPad keyboard keeps every key white, including
+                // function keys — only iPhone's keyboard two-tones them
+                // gray, so iPad ignores `active` entirely here.
+                .background(isPad || active ? Color.white : Color(red: 0.68, green: 0.70, blue: 0.73), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .keycapShadow()
+                .keyTapTarget()
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel ?? title)
@@ -1223,8 +1388,13 @@ struct KeyboardView: View {
         Button(action: action) {
             Image(systemName: systemImage).font(.system(size: 14, weight: .semibold))
                 .frame(width: width, height: keyHeight)
-                .foregroundStyle(active ? Color.white : Color(red: 0.08, green: 0.10, blue: 0.12))
-                .glassEffect(active ? .regular.tint(Color.brandVioletDark).interactive() : .regular.interactive(), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+                // Apple's iPad keyboard keeps every key white, including
+                // function keys — only iPhone's keyboard two-tones them
+                // gray, so iPad ignores `active` entirely here.
+                .background(isPad || active ? Color.white : Color(red: 0.68, green: 0.70, blue: 0.73), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .keycapShadow()
+                .keyTapTarget()
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
@@ -1248,8 +1418,87 @@ struct KeyboardView: View {
         )
     }
 
-    /// Double-tap toggles a persistent caps lock; a single tap behaves like
-    /// Apple's one-shot shift (capitalizes only the next letter).
+    /// Switches between letters and numbers/symbols — labeled ".?123" to
+    /// match Apple's iPad keyboard exactly (iPhone keeps the plain "123").
+    private var modeSwitchKey: some View {
+        modifierKey(
+            isNumbers ? "ABC" : ".?123", width: keySize * 1.3,
+            accessibilityLabel: isNumbers ? "Letters" : "Numbers and symbols",
+            accessibilityHint: isNumbers ? "Switches back to the letter keys." : "Switches to numbers and symbols."
+        ) {
+            isNumbers.toggle(); isSymbols = false
+            if !capsLocked { isShifted = false }
+            playKeyClick()
+        }
+    }
+
+    /// Apple's hardware-style iPad layout gives Tab its own key at the start
+    /// of the q-row, distinct from shift/caps lock.
+    private func tabKey(width: CGFloat) -> some View {
+        modifierKey(
+            systemImage: "arrow.right.to.line",
+            width: width,
+            accessibilityLabel: "Tab",
+            accessibilityHint: "Inserts a tab character."
+        ) { insertCharacter("\t") }
+    }
+
+    /// Apple's hardware-style iPad layout puts a dedicated Caps Lock key at
+    /// the start of the a-row — separate from the two one-shot Shift keys
+    /// on the z-row below, which only capitalize the next letter.
+    private func capsLockKey(width: CGFloat) -> some View {
+        modifierKey(
+            systemImage: capsLocked ? "capslock.fill" : "capslock",
+            active: capsLocked,
+            width: width,
+            accessibilityLabel: capsLocked ? "Caps lock, on" : "Caps lock",
+            accessibilityHint: "Turns caps lock on or off."
+        ) {
+            playKeyClick()
+            capsLocked.toggle()
+            isShifted = capsLocked
+        }
+    }
+
+    /// Apple's dictation mic slot on the bottom row, filled with ToneLayer's
+    /// own Hume-powered voice dictation (same toggle used by the compose
+    /// toolbar's mic button) instead of Apple's system dictation, which
+    /// third-party keyboards can't call into.
+    private func humeMicKey(width: CGFloat) -> some View {
+        modifierKey(
+            systemImage: dictation.isRecording ? "stop.circle.fill" : "mic.fill",
+            active: dictation.isRecording,
+            width: width,
+            accessibilityLabel: dictation.isRecording ? "Stop recording" : "Start voice dictation",
+            accessibilityHint: dictation.isRecording ? "Stops listening and types what you said." : "Starts listening and types what you say."
+        ) {
+            playKeyClick()
+            dictation.toggle { text in
+                inputVC.textDocumentProxy.insertText(text)
+                keyboardTypedText += text
+            }
+        }
+    }
+
+    /// Third-party keyboards are expected to offer their own way to return
+    /// to the previous keyboard/app, since they don't get the system
+    /// keyboard's dismiss gesture — matches Apple's own
+    /// "keyboard.chevron.compact.down" dismiss icon.
+    private func hideKeyboardKey(width: CGFloat) -> some View {
+        modifierKey(
+            systemImage: "keyboard.chevron.compact.down",
+            width: width,
+            accessibilityLabel: "Dismiss keyboard",
+            accessibilityHint: "Hides the keyboard."
+        ) {
+            playKeyClick()
+            inputVC.dismissKeyboard()
+        }
+    }
+
+    /// Single tap behaves like Apple's one-shot shift (capitalizes only the
+    /// next letter); double-tap also toggles the persistent caps lock, as a
+    /// muscle-memory fallback alongside the dedicated `capsLockKey`.
     private func handleShiftTap() {
         playKeyClick()
         let now = Date()
@@ -1285,14 +1534,65 @@ struct KeyboardView: View {
         }
     }
 
+    /// The iPad's permanently-visible number row: each key doubles as its
+    /// shifted punctuation twin (1↔!, 2↔@, …, -↔_, =↔+), with delete at
+    /// the end — matching Apple's iPad keyboard, which keeps this whole
+    /// row visible above the letters instead of behind a "123" page
+    /// switch. Same height as the other rows — on a real iPad the number
+    /// row isn't a shrunken strip, it's a full row just like the rest.
+    private var compactNumberRow: some View {
+        let pairs: [(String, String)] = [
+            ("1", "!"), ("2", "@"), ("3", "#"), ("4", "$"), ("5", "%"), ("6", "^"),
+            ("7", "&"), ("8", "*"), ("9", "("), ("0", ")"), ("-", "_"), ("=", "+")
+        ]
+        return HStack(spacing: 5) {
+            // Apple's iPad number row starts with "§/±", not "`~" — the
+            // backtick/tilde key lives on the z-row instead (see below).
+            dualCharKey("§", "±", width: keySize)
+            ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
+                dualCharKey(pair.0, pair.1, width: keySize)
+            }
+            deleteKey(width: keySize * 1.4)
+        }
+    }
+
+    /// A physical-keyboard-style punctuation key showing two characters:
+    /// tapping types the bottom one (or the top one when shift is on,
+    /// same as every other key); long-pressing always types the top one
+    /// directly, so reaching a symbol never requires a separate tap on
+    /// shift first.
+    private func dualCharKey(_ bottom: String, _ top: String, width: CGFloat, height: CGFloat? = nil) -> some View {
+        VStack(spacing: 0) {
+            Text(top).font(.system(size: 10, weight: .regular)).opacity(0.55)
+            Text(bottom).font(.system(size: 15, weight: .regular))
+        }
+        .frame(width: width, height: height ?? keyHeight)
+        .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+        .keycapShadow()
+        .keyTapTarget()
+        .onTapGesture {
+            let typed = isShifted ? top : bottom
+            insertCharacter(typed)
+            if isShifted && !capsLocked { isShifted = false }
+        }
+        .onLongPressGesture(minimumDuration: 0.35) {
+            insertCharacter(top)
+        }
+        .accessibilityLabel("\(bottom) key")
+        .accessibilityHint("Types \(bottom). Long-press to type \(top) directly.")
+        .accessibilityAddTraits(.isButton)
+    }
+
     /// Delete key with Apple's long-press auto-repeat behavior.
-    private func deleteKey(width: CGFloat) -> some View {
+    private func deleteKey(width: CGFloat, height: CGFloat? = nil) -> some View {
         Image(systemName: "delete.left")
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
-            .frame(width: width, height: keyHeight)
-            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
-            .contentShape(Rectangle())
+            .frame(width: width, height: height ?? keyHeight)
+            .background(isPad ? Color.white : Color(red: 0.68, green: 0.70, blue: 0.73), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .keycapShadow()
+            .keyTapTarget()
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
@@ -1318,11 +1618,12 @@ struct KeyboardView: View {
     /// Space bar: tap inserts a space; a horizontal drag moves the cursor,
     /// mirroring Apple's space-bar trackpad gesture.
     private var spaceKey: some View {
-        Text("space").font(.system(size: 13, weight: .regular))
+        Text("").font(.system(size: 13, weight: .regular))
             .frame(maxWidth: .infinity).frame(height: keyHeight)
             .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
-            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
-            .contentShape(Rectangle())
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .keycapShadow()
+            .keyTapTarget()
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
@@ -1382,7 +1683,7 @@ struct KeyboardView: View {
             Text(title).font(.system(size: 11, weight: .semibold))
                 .frame(maxWidth: .infinity).padding(.vertical, 8)
                 .foregroundStyle(primary ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
-                .glassEffect(primary ? .regular.tint(Color.brandVioletDark).interactive() : .regular.interactive(), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(primary ? Color.brandVioletDark : Color.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
@@ -1452,6 +1753,27 @@ struct KeyboardView: View {
         keyboardTypedText = accumulated + after
     }
 
+    /// Coarse "does this look like real language, not garbled/placeholder
+    /// text" check, reusing the on-device `UITextChecker` already used for
+    /// suggestions. Guards against captured text that came from a field
+    /// that isn't a real message body (e.g. a Messages "To:" recipient
+    /// field) rather than requiring the field's role to be known — iOS
+    /// gives keyboard extensions no public API to ask "what kind of field
+    /// is this," so a garbled short capture like "Ffu" from the wrong
+    /// field previously got sent to the AI as if it were a real message,
+    /// producing a confusing model-generated response instead of a plain
+    /// local status message.
+    private func looksLikeRealText(_ text: String) -> Bool {
+        let words = text.split { !$0.isLetter }.map(String.init)
+        guard !words.isEmpty else { return false }
+        for word in words where word.count >= 2 {
+            let range = NSRange(location: 0, length: word.utf16.count)
+            let bad = spellChecker.rangeOfMisspelledWord(in: word, range: range, startingAt: 0, wrap: false, language: "en_US")
+            if bad.location == NSNotFound { return true }
+        }
+        return false
+    }
+
     private func rewrite() {
         defaults?.synchronize()
         isRewriting = true; explanation = ""; showSpiral = false
@@ -1485,16 +1807,25 @@ struct KeyboardView: View {
                 totalToDelete = clip.count
             } else {
                 let scanned = await captureFullDocument(proxy)
-                full = scanned.trimmingCharacters(in: .whitespacesAndNewlines)
-                totalToDelete = scanned.count
+                if scanned.incomplete {
+                    await MainActor.run {
+                        isRewriting = false
+                        defaults?.set(false, forKey: "keyboardRewriteInProgress")
+                        defaults?.synchronize()
+                        showStatus("Could only read the last part of your message — open it in the ToneLayer app to rewrite the whole thing")
+                    }
+                    return
+                }
+                full = scanned.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                totalToDelete = scanned.text.count
             }
 
-            guard !full.isEmpty else {
+            guard !full.isEmpty, looksLikeRealText(full) else {
                 await MainActor.run {
                     isRewriting = false
                     defaults?.set(false, forKey: "keyboardRewriteInProgress")
                     defaults?.synchronize()
-                    showStatus("Type some text first")
+                    showStatus(full.isEmpty ? "Type some text first" : "Couldn't find a real message to rewrite \u{2014} make sure you're typing in the message field")
                 }
                 return
             }
@@ -1569,6 +1900,11 @@ struct KeyboardView: View {
     /// string is still what gets returned and sent for rewriting.
     private func pasteboardFullText(before: String, after: String) -> String? {
         guard after.isEmpty, before.count >= 20 else { return nil }
+        // UIPasteboard.general is unreadable without Full Access — checking this
+        // explicitly (rather than just letting the read return nil) means we
+        // skip straight to the cursor-walk fallback instead of wasting a cycle
+        // on a read we already know will fail.
+        guard inputVC.hasFullAccess else { return nil }
         guard let clip = UIPasteboard.general.string else { return nil }
         guard normalizedForMatch(clip).hasSuffix(normalizedForMatch(before)) else { return nil }
         return clip
@@ -1592,7 +1928,7 @@ struct KeyboardView: View {
     /// window by window until no new text appears. Non-destructive (it only reads
     /// and moves the cursor); the result is shown as a preview before anything is
     /// replaced, so a bad capture can never silently overwrite the message.
-    private func captureFullDocument(_ proxy: UITextDocumentProxy) async -> String {
+    private func captureFullDocument(_ proxy: UITextDocumentProxy) async -> (text: String, incomplete: Bool) {
         func readAfter()  async -> String { await MainActor.run { proxy.documentContextAfterInput  ?? "" } }
         func readBefore() async -> String { await MainActor.run { proxy.documentContextBeforeInput ?? "" } }
         func move(_ n: Int) async {
@@ -1621,13 +1957,22 @@ struct KeyboardView: View {
         var full = ""
         var lastWindow = ""
         var stall = 0
+        var incomplete = false
         steps = 0
         while steps < 800 {
             let window = await readBefore()
             if window.isEmpty { break }
             if window == lastWindow {
                 stall += 1
-                if stall >= 5 { break }
+                if stall >= 5 {
+                    // Retried several times with growing delays and the window
+                    // never moved — this host app genuinely caps how far back a
+                    // keyboard extension can see, not just IPC lag. Report this
+                    // so the caller can warn the user instead of silently
+                    // rewriting a partial message.
+                    incomplete = true
+                    break
+                }
                 try? await Task.sleep(nanoseconds: UInt64(stall) * 60_000_000)
                 continue
             }
@@ -1645,7 +1990,7 @@ struct KeyboardView: View {
             after = await readAfter()
             steps += 1
         }
-        return full
+        return (full, incomplete)
     }
 
     private func deleteBackwardChunked(proxy: UITextDocumentProxy, count: Int) async {
