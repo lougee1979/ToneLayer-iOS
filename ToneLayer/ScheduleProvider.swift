@@ -127,12 +127,13 @@ final class ScheduleProvider: NSObject, ObservableObject {
     private func travelMinutes(to address: String) async -> Int? {
         guard let currentLocation else { return nil }
 
-        guard let destination = try? await CLGeocoder().geocodeAddressString(address).first?.location
+        guard let geocodeRequest = MKGeocodingRequest(addressString: address),
+              let destination = try? await geocodeRequest.mapItems.first?.location
         else { return nil }
 
         let request = MKDirections.Request()
-        request.source = MKMapItem(placemark: MKPlacemark(coordinate: currentLocation.coordinate))
-        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: destination.coordinate))
+        request.source = MKMapItem(location: currentLocation, address: nil)
+        request.destination = MKMapItem(location: destination, address: nil)
         request.transportType = .automobile
 
         guard let route = try? await MKDirections(request: request).calculate().routes.first

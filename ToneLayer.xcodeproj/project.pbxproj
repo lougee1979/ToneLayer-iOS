@@ -70,22 +70,16 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		BF6B1CDA2FA7896F00AD43B9 /* ToneLayer */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = ToneLayer;
 			sourceTree = "<group>";
 		};
 		BF6B1CE82FA7897000AD43B9 /* ToneLayerTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = ToneLayerTests;
 			sourceTree = "<group>";
 		};
 		BF6B1CF22FA7897000AD43B9 /* ToneLayerUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = ToneLayerUITests;
 			sourceTree = "<group>";
 		};

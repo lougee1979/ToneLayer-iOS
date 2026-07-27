@@ -184,7 +184,7 @@ struct ComposerView: View {
         Group {
             if appModel.showExplanation {
                 VStack(alignment: .leading, spacing: 12) {
-                    Label("How this lands", systemImage: "lightbulb.fill")
+                    Label("Why this changed", systemImage: "lightbulb.fill")
                         .font(.headline)
                         .foregroundStyle(Color.brandVioletDark)
                     if hasComposerOutput && !composerExplanation.isEmpty {
