@@ -21,10 +21,10 @@ struct InsightView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("TonalInsight\u{2122} (Beta)", systemImage: "waveform")
+                        Label("TonalInsight\u{2122} (Beta) \u{2014} your communication coach & EF layer", systemImage: "waveform")
                             .font(.headline)
                             .foregroundStyle(Color.brandVioletDark)
-                        Text("Talk for a bit and ToneLayer will listen for what your tone of voice is carrying \u{2014} stress, calm, hesitation, and more. This is an early preview powered by Hume AI; nothing is said back to you.")
+                        Text("For people whose executive function runs thin, sorting out what's actually on your mind and what to tackle first can be its own kind of hard. Talk it through here \u{2014} ToneLayer helps you prioritize and organize your thoughts, and listens for what your tone of voice is carrying along the way: stress, calm, hesitation, and more. This is an early preview powered by Hume AI; nothing is said back to you.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)

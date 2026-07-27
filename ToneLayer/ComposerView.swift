@@ -165,7 +165,7 @@ struct ComposerView: View {
                     Text("TonalInsight\u{2122} (Beta)")
                         .font(.headline)
                         .foregroundStyle(Color.primary)
-                    Text("Talk it through \u{2014} ToneLayer listens to your tone of voice")
+                    Text("Your communication coach & EF layer \u{2014} talk it through, sort out what's on your mind, and figure out what to do first")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
