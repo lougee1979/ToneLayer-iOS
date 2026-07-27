@@ -1,4 +1,5 @@
 import SwiftUI
+import ToneLayerCore
 
 let toneLayerAppGroupID = "group.com.alden.tonelayer"
 let agreementAcceptedKey = "betaAgreementAccepted.v1"
@@ -9,11 +10,16 @@ func hasAcceptedAgreement() -> Bool {
 
 struct AgreementGate: View {
     @State private var accepted = false
+    @State private var showTradeSecretSetup = false
     @State private var showApp  = false
 
     var body: some View {
         if showApp {
             ContentView()
+        } else if showTradeSecretSetup {
+            TradeSecretSetupView {
+                withAnimation(.easeInOut(duration: 0.3)) { showApp = true }
+            }
         } else {
             agreementScreen
         }
@@ -73,7 +79,13 @@ struct AgreementGate: View {
                     Button {
                         guard accepted else { return }
                         UserDefaults(suiteName: toneLayerAppGroupID)?.set(true, forKey: agreementAcceptedKey)
-                        withAnimation(.easeInOut(duration: 0.3)) { showApp = true }
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            if CustomTermsStore.hasSeenSetup {
+                                showApp = true
+                            } else {
+                                showTradeSecretSetup = true
+                            }
+                        }
                     } label: {
                         Text("Enter ToneLayer")
                             .font(.system(size: 16, weight: .bold))
@@ -99,7 +111,7 @@ struct AgreementGate: View {
     private let agreementText = """
 ToneLayer Beta Testing Agreement
 
-Last updated: June 2026
+Last updated: July 2026
 
 Thank you for testing ToneLayer. This agreement covers the ToneLayer app and the ToneLayer keyboard extension. By accepting and entering the app you agree to the following.
 
@@ -116,7 +128,7 @@ ToneLayer is beta software. Features may change, crash, or produce unexpected re
 ToneLayer is a communication aid. It is not a medical device, therapy tool, diagnostic service, or source of legal advice. It does not provide clinical, psychological, or legal guidance. If you need professional support, please speak with a qualified professional.
 
 5. YOUR TEXT IS PROCESSED ON OUR SERVER
-Messages you type in the app or keyboard are sent to tonelayer.app for AI processing. Your text is not permanently stored on the server. Do not enter sensitive personal information such as passwords, financial data, or private medical details. By using ToneLayer you consent to this processing.
+Before anything leaves your device, the app automatically strips names, phone numbers, addresses, dates, bank account numbers, crypto wallet addresses/private keys/seed phrases, API keys, and any business or trade-secret terms you've added yourself — replacing each with a placeholder. Only the placeholder-substituted text is sent to tonelayer.app for AI processing; the real values are restored on your device once a response returns and are never transmitted or stored. Your text is not permanently stored on the server. This protection is automatic, but it is not a guarantee against every possible leak — stay careful with what you share and who you share it with. By using ToneLayer you consent to this processing.
 
 6. FEEDBACK
 As a beta tester you agree to report bugs, usability issues, and unexpected behavior using the feedback option in the app. Your feedback directly improves the app.
