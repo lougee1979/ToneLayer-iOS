@@ -312,6 +312,17 @@ struct KeyboardView: View {
     @State private var explanation       = ""
     @State private var showExpl          = true
     @State private var spiralEnabled     = true
+    @State private var spiralSensitivity = "Medium"
+    // Rolling window of keystroke timestamps (last ~5s only, pruned on
+    // every insert) used to detect sustained fast/rushed typing. Just
+    // Doubles under the hood — negligible against the keyboard extension's
+    // memory limit even over a long typing session.
+    @State private var keystrokeTimestamps: [Date] = []
+    // What actually tripped Spiral Pause this time, so the card can name
+    // the specific behavior instead of a generic message — kept separate
+    // from `result.distortions` (the server's own cognitive-distortion
+    // labels), which already has its own display path.
+    @State private var spiralTriggerLabels: [String] = []
     @State private var isShifted         = false
     @State private var isNumbers         = false
     @State private var isSymbols         = false
@@ -1346,6 +1357,7 @@ struct KeyboardView: View {
             playKeyClick()
             return
         }
+        recordKeystroke()
         let proxy = inputVC.textDocumentProxy
         if s == " ", let before = proxy.documentContextBeforeInput, before.hasSuffix(" "),
            let lastTyped = before.dropLast().last, lastTyped.isLetter {
@@ -1773,10 +1785,10 @@ struct KeyboardView: View {
     private var spiralCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("\u{1F49A}  Pause for a sec?").font(.system(size: 13, weight: .bold))
-            Text("Your text has some patterns that might land differently than you intend.")
+            Text(Self.spiralReasonSentence(spiralTriggerLabels))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
             HStack(spacing: 8) {
-                chipButton("Keep as-is", primary: false) { spiralOriginal = ""; spiralOriginalCount = 0; withAnimation { showSpiral = false } }
+                chipButton("Keep as-is", primary: false) { spiralOriginal = ""; spiralOriginalCount = 0; spiralTriggerLabels = []; withAnimation { showSpiral = false } }
                 chipButton("Show me the rewrite", primary: true) { showSpiralPreview() }
             }
             if !teachingBody.isEmpty {
@@ -1831,6 +1843,8 @@ struct KeyboardView: View {
         let stored = defaults?.string(forKey: "rewriteLevel") ?? "Medium"
         level = ["Light", "Medium", "Strong"].contains(stored) ? stored : "Medium"
         spiralEnabled = defaults?.object(forKey: "spiralPauseEnabled") == nil ? true : (defaults?.bool(forKey: "spiralPauseEnabled") ?? true)
+        let storedSensitivity = defaults?.string(forKey: "spiralSensitivity") ?? "Medium"
+        spiralSensitivity = ["Low", "Medium", "High"].contains(storedSensitivity) ? storedSensitivity : "Medium"
         showExpl = defaults?.object(forKey: "showExplanation.v2") == nil ? true : (defaults?.bool(forKey: "showExplanation.v2") ?? true)
         teachingBody = defaults?.string(forKey: "lastTeachingNote") ?? ""
     }
@@ -1894,6 +1908,136 @@ struct KeyboardView: View {
             if bad.location == NSNotFound { return true }
         }
         return false
+    }
+
+    // MARK: - Spiral Pause: behavioral triggers
+    //
+    // Additive to the server's own cognitive-distortion detection
+    // (`result.isSpiraling`) and Hume's vocal-tone flag (`voiceDistressed`)
+    // — these three are client-side, on-device, no-network signals about
+    // *how* the message is being typed, not what it says. All three are
+    // scaled by `spiralSensitivity` (Low/Medium/High), the same setting
+    // that already exists in Settings.
+
+    private static let typingWindowSeconds: TimeInterval = 5
+
+    /// Appends "now" to the rolling keystroke-timestamp window and prunes
+    /// anything older than the window, so `typedFastSignal` always reflects
+    /// only the last ~5 seconds of typing, not the whole session. Called
+    /// from every real character insert in `insertCharacter`.
+    private func recordKeystroke() {
+        let now = Date()
+        keystrokeTimestamps.append(now)
+        let cutoff = now.addingTimeInterval(-Self.typingWindowSeconds)
+        keystrokeTimestamps.removeAll { $0 < cutoff }
+    }
+
+    /// Chars/sec threshold for "typing too fast" to count as a spiral
+    /// signal — Low only trips on genuinely rapid-fire typing, High flags
+    /// moderately fast typing too.
+    private var typedFastThreshold: Double {
+        switch spiralSensitivity {
+        case "Low":  return 10
+        case "High": return 6
+        default:     return 8
+        }
+    }
+
+    /// Character-count threshold for "message is getting long."
+    private var tooLongThreshold: Int {
+        switch spiralSensitivity {
+        case "Low":  return 500
+        case "High": return 200
+        default:     return 350
+        }
+    }
+
+    private var typedFastSignal: Bool {
+        guard keystrokeTimestamps.count >= 2 else { return false }
+        let now = Date()
+        let cutoff = now.addingTimeInterval(-Self.typingWindowSeconds)
+        let recent = keystrokeTimestamps.filter { $0 >= cutoff }
+        guard recent.count >= 2, let first = recent.first else { return false }
+        let elapsed = now.timeIntervalSince(first)
+        guard elapsed > 0 else { return false }
+        return Double(recent.count) / elapsed >= typedFastThreshold
+    }
+
+    private func tooLongSignal(_ text: String) -> Bool {
+        text.count >= tooLongThreshold
+    }
+
+    /// A small, hand-picked list of hostile/absolute words — kept as one
+    /// editable constant, separate from the scoring logic, so it's easy
+    /// to tune later without touching how it's used.
+    private static let angryWords: Set<String> = [
+        "hate", "hates", "hated", "always", "never", "shut up", "stupid",
+        "idiot", "pathetic", "worthless", "disgusting", "screw you",
+        "fuck", "fucking", "shit", "damn", "asshole", "bitch"
+    ]
+
+    /// Three independent sub-signals (all-caps ratio, exclamation-mark
+    /// count, hostile word list) combined per sensitivity — Low requires
+    /// at least two to agree (a real combination, not just one loud word),
+    /// Medium/High trip on any single strong signal.
+    private func angryToneSignal(_ text: String) -> Bool {
+        guard !text.isEmpty else { return false }
+        let words = text.split { !$0.isLetter }
+        let eligible = words.filter { $0.count >= 2 }
+        let capsCount = eligible.filter { $0 == $0.uppercased() && $0 != $0.lowercased() }.count
+        let capsRatio = eligible.count >= 3 ? Double(capsCount) / Double(eligible.count) : 0
+
+        let capsThreshold: Double
+        let exclThreshold: Int
+        switch spiralSensitivity {
+        case "Low":  capsThreshold = 0.7;  exclThreshold = 5
+        case "High": capsThreshold = 0.35; exclThreshold = 2
+        default:     capsThreshold = 0.5;  exclThreshold = 3
+        }
+
+        let capsHit = capsRatio >= capsThreshold
+        let exclHit = text.filter { $0 == "!" }.count >= exclThreshold
+        let lowered = text.lowercased()
+        let wordHit = Self.angryWords.contains { lowered.contains($0) }
+
+        if spiralSensitivity == "Low" {
+            return [capsHit, exclHit, wordHit].filter { $0 }.count >= 2
+        }
+        return capsHit || exclHit || wordHit
+    }
+
+    /// Names which specific behavior(s) tripped Spiral Pause — "identify
+    /// the behavior, don't diagnose, hand back the choice," same principle
+    /// as the rest of the app. Order roughly matches how noticeable each
+    /// signal would feel to name out loud.
+    private static func spiralTriggerLabels(
+        isSpiraling: Bool, voiceDistressed: Bool, typedFast: Bool, tooLong: Bool, angryTone: Bool
+    ) -> [String] {
+        var labels: [String] = []
+        if typedFast   { labels.append("you're typing fast") }
+        if tooLong     { labels.append("this is getting long") }
+        if angryTone   { labels.append("the tone reads angry") }
+        if isSpiraling { labels.append("some phrasing might land differently than you intend") }
+        if voiceDistressed { labels.append("your voice sounded tense while dictating this") }
+        return labels
+    }
+
+    /// Joins the trigger labels into one natural sentence for the spiral
+    /// card. Falls back to the original generic message if somehow called
+    /// with no labels (shouldn't happen — showSpiral only becomes true
+    /// alongside at least one label being set).
+    private static func spiralReasonSentence(_ labels: [String]) -> String {
+        guard !labels.isEmpty else {
+            return "Your text has some patterns that might land differently than you intend."
+        }
+        let joined: String
+        if labels.count == 1 {
+            joined = labels[0]
+        } else {
+            joined = labels.dropLast().joined(separator: ", ") + ", and " + labels.last!
+        }
+        let capitalized = joined.prefix(1).uppercased() + joined.dropFirst()
+        return "\(capitalized) \u{2014} do you really want to send this?"
     }
 
     private func rewrite() {
@@ -1966,11 +2110,19 @@ struct KeyboardView: View {
                 if voiceDistressed && !result.isSpiraling {
                     note += " Your voice sounded tense while dictating this, so we paused before sending."
                 }
-                if spiralEnabled && (result.isSpiraling || voiceDistressed) {
+                let typedFast = typedFastSignal
+                let tooLong = tooLongSignal(full)
+                let angryTone = angryToneSignal(full)
+                if spiralEnabled && (result.isSpiraling || voiceDistressed || typedFast || tooLong || angryTone) {
+                    let labels = Self.spiralTriggerLabels(
+                        isSpiraling: result.isSpiraling, voiceDistressed: voiceDistressed,
+                        typedFast: typedFast, tooLong: tooLong, angryTone: angryTone
+                    )
                     await MainActor.run {
                         isRewriting = false
                         spiralNT = result.rewrite; spiralGrammar = result.grammarOnly
                         spiralOriginal = full; spiralOriginalCount = totalToDelete
+                        spiralTriggerLabels = labels
                         teachingBody = note
                         defaults?.set(note, forKey: "lastTeachingNote")
                         defaults?.set(false, forKey: "keyboardRewriteInProgress")
