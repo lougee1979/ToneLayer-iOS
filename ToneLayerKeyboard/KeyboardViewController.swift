@@ -124,6 +124,19 @@ extension View {
     }
 }
 
+/// Scales a button's label up on press. Used for ToneLayer's own tiny
+/// controls (L/M/S tiles, action icons, close button) — those shrank down
+/// to small tap targets, so unlike the full-size letter keys, they need
+/// clear press feedback to confirm which one actually got hit.
+struct ExpandOnPressStyle: ButtonStyle {
+    var scale: CGFloat = 1.35
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1.0)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+    }
+}
+
 /// The pointed "speech bubble" shape native iOS uses for the enlarged
 /// key-press preview popup — a rounded rectangle with a small triangular
 /// tail pointing down at the key being pressed, instead of a plain
@@ -333,6 +346,20 @@ struct KeyboardView: View {
     private let spellChecker = UITextChecker()
     private let hapticGenerator = UIImpactFeedbackGenerator(style: .light)
     private let autocorrectTriggers: Set<String> = [" ", "\n", ".", ",", "!", "?", ";", ":"]
+
+    /// `UITextChecker.learnWord` teaches the device's shared system
+    /// dictionary — persists across launches once learned, so repeat calls
+    /// are harmless. Without this, "adhd"/"audhd"/"cptsd" aren't real
+    /// dictionary words, so autocorrect silently "fixes" them to the
+    /// nearest real word (e.g. "adhd" -> "add") — actively wrong for an
+    /// app whose whole purpose is talking about ND conditions. Learning
+    /// both casings since UITextChecker's own case-matching isn't
+    /// guaranteed to generalize from just one.
+    private static func teachNDTerms() {
+        for word in ["adhd", "ADHD", "audhd", "AuDHD", "cptsd", "CPTSD", "ptsd", "PTSD"] {
+            UITextChecker.learnWord(word)
+        }
+    }
     private let accentVariants: [String: [String]] = [
         "a": ["à", "á", "â", "ä", "æ", "ã", "å"],
         "e": ["è", "é", "ê", "ë"],
@@ -386,6 +413,7 @@ struct KeyboardView: View {
         )
         .preferredColorScheme(.light)
         .onAppear {
+            Self.teachNDTerms()
             loadSettings(); seedTypedTextFromProxy(); updateAutoCapitalization(); updateSuggestions()
             // Deferred to the next runloop turn so it runs after this
             // keystroke's own `keyboardTypedText += s` has already executed
@@ -436,6 +464,7 @@ struct KeyboardView: View {
             Button { inputVC.dismissKeyboard() } label: {
                 Image(systemName: "keyboard.chevron.compact.down").font(.system(size: 12)).foregroundStyle(.secondary).frame(width: 18, height: 16)
             }
+            .buttonStyle(ExpandOnPressStyle())
             .accessibilityLabel("Close keyboard")
             .accessibilityHint("Hides the keyboard and returns to the app.")
         }
@@ -474,10 +503,13 @@ struct KeyboardView: View {
         }
         let range = NSRange(location: 0, length: word.utf16.count)
         var results: [String] = []
-        // Spelling corrections first, but only if the word is actually misspelled.
+        // Spelling corrections first, but only if the word is actually
+        // misspelled — and never for the never-autocorrect ND terms (see
+        // `autocorrectLastWord`), so "adhd" doesn't show "add" as a
+        // tappable suggestion even before autocorrect-on-space would fire.
         let bad = spellChecker.rangeOfMisspelledWord(in: word, range: range,
                                                      startingAt: 0, wrap: false, language: "en_US")
-        if bad.location != NSNotFound,
+        if bad.location != NSNotFound, !Self.neverAutocorrect.contains(word.lowercased()),
            let guesses = spellChecker.guesses(forWordRange: range, in: word, language: "en_US") {
             results.append(contentsOf: guesses.prefix(3))
         }
@@ -838,7 +870,7 @@ struct KeyboardView: View {
                         .foregroundStyle(level == l ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
                         .background(level == l ? Color.brandVioletDark : Color.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ExpandOnPressStyle())
                 .accessibilityLabel("\(l) rewrite strength")
                 .accessibilityHint(level == l ? "Currently selected." : "Sets how strongly your text gets rewritten.")
             }
@@ -852,6 +884,7 @@ struct KeyboardView: View {
                 .foregroundStyle(.white)
                 .background(Color.brandVioletDark.opacity(isRewriting ? 0.55 : 1), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             }
+            .buttonStyle(ExpandOnPressStyle())
             .disabled(isRewriting || isAnalyzing)
             .accessibilityLabel(isRewriting ? "Rewriting" : "Rewrite")
             .accessibilityHint("Rewrites your text to sound more neurotypical.")
@@ -864,6 +897,7 @@ struct KeyboardView: View {
                 .foregroundStyle(.white)
                 .background(Color(red: 0.55, green: 0.20, blue: 0.78).opacity(isAnalyzing ? 0.55 : 1), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             }
+            .buttonStyle(ExpandOnPressStyle())
             .disabled(isRewriting || isAnalyzing)
             .accessibilityLabel(isAnalyzing ? "Analyzing" : "Analyze")
             .accessibilityHint("Checks your clipboard text for manipulative or narcissistic patterns.")
@@ -879,6 +913,7 @@ struct KeyboardView: View {
                     .frame(width: 20, height: 18)
                     .background((dictation.isRecording ? Color.red : Color.brandViolet).opacity(0.22), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             }
+            .buttonStyle(ExpandOnPressStyle())
             .accessibilityLabel(dictation.isRecording ? "Stop recording" : "Start voice dictation")
             .accessibilityHint(dictation.isRecording ? "Stops listening and types what you said." : "Starts listening and types what you say.")
             Button {
@@ -891,6 +926,7 @@ struct KeyboardView: View {
                     .frame(width: 20, height: 18)
                     .background(Color.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             }
+            .buttonStyle(ExpandOnPressStyle())
             .accessibilityLabel("Paste")
             .accessibilityHint("Inserts the text you last copied.")
 
@@ -1330,11 +1366,19 @@ struct KeyboardView: View {
         insertCharacter(" ")
     }
 
+    /// Hard guarantee on top of `teachNDTerms` — never autocorrect these
+    /// regardless of case or any system-dictionary edge case. An app about
+    /// ADHD has to be able to type the word "adhd" without it silently
+    /// becoming "add"; this doesn't depend on `UITextChecker.learnWord`
+    /// having taken effect.
+    private static let neverAutocorrect: Set<String> = ["adhd", "audhd", "cptsd", "ptsd"]
+
     private func autocorrectLastWord(proxy: UITextDocumentProxy) {
         guard let before = proxy.documentContextBeforeInput else { return }
         let trailing = before.reversed().prefix { $0.isLetter }
         guard trailing.count > 1 else { return }
         let word = String(trailing.reversed())
+        guard !Self.neverAutocorrect.contains(word.lowercased()) else { return }
         let range = NSRange(location: 0, length: word.utf16.count)
         let misspelled = textChecker.rangeOfMisspelledWord(in: word, range: range, startingAt: 0, wrap: false, language: "en_US")
         guard misspelled.location != NSNotFound,
