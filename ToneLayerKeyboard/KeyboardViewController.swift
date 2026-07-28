@@ -1027,17 +1027,43 @@ struct KeyboardView: View {
     /// numbers page, and how Apple's own keyboard sizes these keys (they
     /// aren't a fixed ratio, they're whatever size makes the row flush).
     ///
+    /// On screens wide enough to cap `keySize` at its max (e.g. 13" iPad
+    /// landscape), that "leftover width" used to stop at the number row's
+    /// own natural width, leaving real unclaimed margin on both sides of
+    /// the whole key block instead of reaching the true screen edge —
+    /// `letterRowTargetWidth` is that same leftover-absorption idea,
+    /// extended to solve against the actual available width instead.
+    private var letterRowTargetWidth: CGFloat {
+        let natural = 14.4 * keySize + 65
+        guard keyboardWidth > 0 else { return natural }
+        return max(natural, keyboardWidth - 8)
+    }
+
     /// Tab (q-row) and Caps Lock (a-row) both replace exactly one square
-    /// key's worth of that leftover width.
-    private var qRowEdgeKeyWidth: CGFloat { keySize * 1.4 }
+    /// key's worth of leftover width, widened further to reach
+    /// `letterRowTargetWidth` when there's real margin to claim. Capped at
+    /// 2.2x a normal key — real Tab/Caps Lock keys on Apple's own hardware
+    /// stay in that range even on the largest iPads; letting this grow
+    /// unbounded to fully zero out the margin (~5x on a 13" iPad) produces
+    /// a comically oversized key instead of a nicer-looking keyboard, so
+    /// past this point the remaining leftover stays as margin instead.
+    private var qRowEdgeKeyWidth: CGFloat {
+        min(letterRowTargetWidth - 13 * keySize - 65, keySize * 2.2)
+    }
 
     /// Return (a-row, at the far end) absorbs the rest of that row's
-    /// leftover width once `qRowEdgeKeyWidth` (Caps Lock) has taken its share.
+    /// leftover width once `qRowEdgeKeyWidth` (Caps Lock) has taken its
+    /// share — algebraically invariant of the target width (the two
+    /// exactly cancel out), so this doesn't need its own cap or update.
     private var returnKeyWidth: CGFloat { keySize * 2 + 5 }
 
     /// Each Shift key (z-row, one on each end) takes half of that row's
-    /// leftover width vs. the number row.
-    private var zRowShiftWidth: CGFloat { keySize * 1.7 + 2.5 }
+    /// leftover width vs. the number row, same widen-with-a-cap treatment
+    /// as `qRowEdgeKeyWidth` (capped at 2.0x here since two keys are
+    /// splitting the leftover rather than one).
+    private var zRowShiftWidth: CGFloat {
+        min((letterRowTargetWidth - 11 * keySize - 60) / 2, keySize * 2.0)
+    }
 
     private var keyboardSection: some View {
         HStack(alignment: .top, spacing: 0) {
