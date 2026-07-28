@@ -23,6 +23,7 @@ struct SettingsView: View {
                 spiralPauseCard
                 explanationToggleCard
                 privacyModeCard
+                CustomTermsEditorCard()
                 privacyAndOutcomesCard
                 analyticsCard
                 testCard

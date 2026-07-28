@@ -20,10 +20,26 @@ public struct PIIRedactor {
     /// Categories severe enough that the caller should warn the user before
     /// sending, not just rely on silent redaction.
     public static let highSensitivityKinds: Set<String> = [
-        "BANK_ACCOUNT", "CRYPTO_ADDRESS", "CRYPTO_KEY", "SEED_PHRASE", "API_KEY"
+        "BANK_ACCOUNT", "CRYPTO_ADDRESS", "CRYPTO_KEY", "SEED_PHRASE", "API_KEY", "BUSINESS_TERM"
     ]
 
-    public init() {}
+    /// The user's own trade-secret/business-confidential terms — unlike
+    /// every other category here, these aren't detectable by pattern
+    /// matching, so the user has to name them themselves (see
+    /// `CustomTermsStore`, populated at first-launch setup and editable
+    /// later in Settings). Loaded once per redactor instance rather than
+    /// re-reading UserDefaults per call.
+    private let customTerms: [String]
+
+    public init() {
+        self.customTerms = CustomTermsStore.terms
+    }
+
+    /// For testing/preview call sites that want to supply terms directly
+    /// instead of reading the shared app-group store.
+    public init(customTerms: [String]) {
+        self.customTerms = customTerms
+    }
 
     public func redact(_ text: String) -> (redacted: String, mapping: [String: String], flaggedKinds: Set<String>) {
         var counters: [String: Int] = [:]
@@ -84,6 +100,7 @@ public struct PIIRedactor {
         }
 
         spans.append(contentsOf: FinancialPatterns.matches(in: text))
+        spans.append(contentsOf: Self.customTermMatches(in: text, terms: customTerms))
 
         spans.sort { $0.range.lowerBound < $1.range.lowerBound }
         var merged: [(range: Range<String.Index>, kind: String)] = []
@@ -113,6 +130,25 @@ public struct PIIRedactor {
         return (result, mapping, flaggedKinds)
     }
 
+    /// Case-insensitive whole-word(ish) matching of the user's own custom
+    /// terms. Plain substring search rather than a data-detector pattern —
+    /// these are arbitrary user-chosen strings (a codename, a client name,
+    /// a project name), so there's no shape to detect, only the literal
+    /// text the user told the app to always strip.
+    private static func customTermMatches(in text: String, terms: [String]) -> [(range: Range<String.Index>, kind: String)] {
+        guard !terms.isEmpty else { return [] }
+        var results: [(range: Range<String.Index>, kind: String)] = []
+        for term in terms {
+            guard !term.isEmpty else { continue }
+            var searchRange = text.startIndex..<text.endIndex
+            while let found = text.range(of: term, options: [.caseInsensitive], range: searchRange) {
+                results.append((found, "BUSINESS_TERM"))
+                searchRange = found.upperBound..<text.endIndex
+            }
+        }
+        return results
+    }
+
     public func rehydrate(_ text: String, mapping: [String: String]) -> String {
         guard !mapping.isEmpty else { return text }
         var result = text
@@ -133,6 +169,7 @@ public struct PIIRedactor {
         if flaggedKinds.contains("CRYPTO_KEY")     { parts.append("a crypto private key") }
         if flaggedKinds.contains("SEED_PHRASE")    { parts.append("what looked like a crypto seed phrase") }
         if flaggedKinds.contains("API_KEY")        { parts.append("what looked like an API key, token, or private key") }
+        if flaggedKinds.contains("BUSINESS_TERM")  { parts.append("one of your flagged business/confidential terms") }
 
         let list: String
         if parts.count == 1 {
