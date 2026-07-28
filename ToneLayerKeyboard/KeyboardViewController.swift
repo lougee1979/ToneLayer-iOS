@@ -347,16 +347,35 @@ struct KeyboardView: View {
     private let hapticGenerator = UIImpactFeedbackGenerator(style: .light)
     private let autocorrectTriggers: Set<String> = [" ", "\n", ".", ",", "!", "?", ";", ":"]
 
+    /// Every condition the app's own profile toggles cover (`profileADHD`,
+    /// `profileAutism`, `profileAUDHD`, `profilePTSD`, `profileCPTSD`,
+    /// `profileDyslexic`), plus the abbreviations/older terms people
+    /// actually type for them in casual writing — not just the acronym
+    /// each profile is named after. "asd" and "aspergers" both still see
+    /// real everyday use for autism specifically; "nd"/"nt" are the app's
+    /// own shorthand, used constantly in its own UI ("ND -> NT"), so
+    /// someone echoing that shorthand back while typing should get the
+    /// same protection.
+    private static let ndTermCasings: [String] = [
+        "adhd", "ADHD",
+        "audhd", "AuDHD", "AUDHD",
+        "asd", "ASD",
+        "aspergers", "Aspergers",
+        "ptsd", "PTSD",
+        "cptsd", "CPTSD",
+        "dyslexic", "Dyslexic", "dyslexia", "Dyslexia",
+        "neurodivergent", "Neurodivergent", "neurotypical", "Neurotypical",
+        "nd", "ND", "nt", "NT"
+    ]
+
     /// `UITextChecker.learnWord` teaches the device's shared system
     /// dictionary — persists across launches once learned, so repeat calls
-    /// are harmless. Without this, "adhd"/"audhd"/"cptsd" aren't real
+    /// are harmless. Without this, most of `ndTermCasings` aren't real
     /// dictionary words, so autocorrect silently "fixes" them to the
     /// nearest real word (e.g. "adhd" -> "add") — actively wrong for an
-    /// app whose whole purpose is talking about ND conditions. Learning
-    /// both casings since UITextChecker's own case-matching isn't
-    /// guaranteed to generalize from just one.
+    /// app whose whole purpose is talking about ND conditions.
     private static func teachNDTerms() {
-        for word in ["adhd", "ADHD", "audhd", "AuDHD", "cptsd", "CPTSD", "ptsd", "PTSD"] {
+        for word in ndTermCasings {
             UITextChecker.learnWord(word)
         }
     }
@@ -1371,7 +1390,9 @@ struct KeyboardView: View {
     /// ADHD has to be able to type the word "adhd" without it silently
     /// becoming "add"; this doesn't depend on `UITextChecker.learnWord`
     /// having taken effect.
-    private static let neverAutocorrect: Set<String> = ["adhd", "audhd", "cptsd", "ptsd"]
+    /// Derived from `ndTermCasings` (lowercased, deduplicated) rather than
+    /// a separate hardcoded list, so the two can't drift out of sync.
+    private static let neverAutocorrect: Set<String> = Set(ndTermCasings.map { $0.lowercased() })
 
     private func autocorrectLastWord(proxy: UITextDocumentProxy) {
         guard let before = proxy.documentContextBeforeInput else { return }
