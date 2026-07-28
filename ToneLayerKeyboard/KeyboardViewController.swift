@@ -197,8 +197,8 @@ class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedback {
         // sit unused below the keys — it comes back out of the total
         // request instead, keeping the keys the same real size without
         // asking the system for any more room than before.
-        if UIDevice.current.userInterfaceIdiom == .pad { base = isLandscape ? 445 : 470 }
-        else { base = isLandscape ? 200 : 300 }
+        if UIDevice.current.userInterfaceIdiom == .pad { base = isLandscape ? 427 : 452 }
+        else { base = isLandscape ? 188 : 288 }
         // The rewrite-result screen keeps the on-screen keys visible
         // (needed to type into the "Refine" field, which — being a text
         // field inside a keyboard extension — can never summon a system
@@ -422,26 +422,25 @@ struct KeyboardView: View {
         .padding(.vertical, 20)
     }
 
-    // Branding + level are shown together with the action icons and
-    // suggestions in `toolbarRow` now (one row instead of three) — this bar
-    // only needs to carry what every screen state shares: identity and the
-    // close button. See `toolbarRow` for the merge.
+    // Shrunk to the bare minimum — a tiny brand mark and the close button,
+    // no text labels. Every byte of height here is height the actual keys
+    // don't get, so this row is deliberately as small as a tappable target
+    // can reasonably be, matching the "ToneLayer's own controls are the
+    // tiny elements, not a full row" direction.
     private var topBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Image(systemName: "yinyang")
                 .foregroundStyle(Color.brandVioletDark)
-                .font(.system(size: 13))
-            Text("ToneLayer").font(.system(size: 11, weight: .bold))
-            Text(activeProfileLabel).font(.system(size: 10)).foregroundStyle(.secondary)
+                .font(.system(size: 10))
             Spacer()
             Button { inputVC.dismissKeyboard() } label: {
-                Image(systemName: "keyboard.chevron.compact.down").font(.system(size: 15)).foregroundStyle(.secondary).frame(width: 26, height: 22)
+                Image(systemName: "keyboard.chevron.compact.down").font(.system(size: 12)).foregroundStyle(.secondary).frame(width: 18, height: 16)
             }
             .accessibilityLabel("Close keyboard")
             .accessibilityHint("Hides the keyboard and returns to the app.")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 1)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 0)
     }
 
     private var mainPanel: some View {
@@ -827,45 +826,43 @@ struct KeyboardView: View {
     /// message in the same space when there is one — never both at once,
     /// so nothing needs its own dedicated row just for that.
     private var toolbarRow: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             ForEach(["Light", "Medium", "Strong"], id: \.self) { l in
                 Button {
                     level = l
                     defaults?.set(l, forKey: "rewriteLevel")
                 } label: {
-                    Text(levelKeyTitle(l))
+                    Text(String(levelKeyTitle(l).prefix(1)))
                         .font(.system(size: 10, weight: level == l ? .bold : .semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
+                        .frame(width: 18, height: 18)
                         .foregroundStyle(level == l ? Color.white : Color(red: 0.12, green: 0.15, blue: 0.18))
-                        .background(level == l ? Color.brandVioletDark : Color.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .background(level == l ? Color.brandVioletDark : Color.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .frame(maxWidth: 46)
                 .accessibilityLabel("\(l) rewrite strength")
                 .accessibilityHint(level == l ? "Currently selected." : "Sets how strongly your text gets rewritten.")
             }
-            Divider().frame(height: 18)
+            Divider().frame(height: 14)
             Button(action: rewrite) {
                 Group {
-                    if isRewriting { ProgressView().scaleEffect(0.55).tint(.white) }
-                    else { Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 12)) }
+                    if isRewriting { ProgressView().scaleEffect(0.45).tint(.white) }
+                    else { Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 10)) }
                 }
-                .frame(width: 28, height: 24)
+                .frame(width: 20, height: 18)
                 .foregroundStyle(.white)
-                .background(Color.brandVioletDark.opacity(isRewriting ? 0.55 : 1), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .background(Color.brandVioletDark.opacity(isRewriting ? 0.55 : 1), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             }
             .disabled(isRewriting || isAnalyzing)
             .accessibilityLabel(isRewriting ? "Rewriting" : "Rewrite")
             .accessibilityHint("Rewrites your text to sound more neurotypical.")
             Button(action: analyzeClipboard) {
                 Group {
-                    if isAnalyzing { ProgressView().scaleEffect(0.5).tint(.white) }
-                    else { Image(systemName: "magnifyingglass").font(.system(size: 12)) }
+                    if isAnalyzing { ProgressView().scaleEffect(0.4).tint(.white) }
+                    else { Image(systemName: "magnifyingglass").font(.system(size: 10)) }
                 }
-                .frame(width: 28, height: 24)
+                .frame(width: 20, height: 18)
                 .foregroundStyle(.white)
-                .background(Color(red: 0.55, green: 0.20, blue: 0.78).opacity(isAnalyzing ? 0.55 : 1), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .background(Color(red: 0.55, green: 0.20, blue: 0.78).opacity(isAnalyzing ? 0.55 : 1), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             }
             .disabled(isRewriting || isAnalyzing)
             .accessibilityLabel(isAnalyzing ? "Analyzing" : "Analyze")
@@ -877,10 +874,10 @@ struct KeyboardView: View {
                 }
             } label: {
                 Image(systemName: dictation.isRecording ? "stop.circle.fill" : "mic.fill")
-                    .font(.system(size: 12))
+                    .font(.system(size: 10))
                     .foregroundStyle(dictation.isRecording ? Color.red : Color.brandViolet)
-                    .frame(width: 26, height: 24)
-                    .background((dictation.isRecording ? Color.red : Color.brandViolet).opacity(0.22), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .frame(width: 20, height: 18)
+                    .background((dictation.isRecording ? Color.red : Color.brandViolet).opacity(0.22), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             }
             .accessibilityLabel(dictation.isRecording ? "Stop recording" : "Start voice dictation")
             .accessibilityHint(dictation.isRecording ? "Stops listening and types what you said." : "Starts listening and types what you say.")
@@ -890,18 +887,18 @@ struct KeyboardView: View {
                 inputVC.textDocumentProxy.insertText(text)
                 showStatus("Pasted \u{2014} tap Rewrite")
             } label: {
-                Image(systemName: "doc.on.clipboard").font(.system(size: 11))
-                    .frame(width: 26, height: 24)
-                    .background(Color.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                Image(systemName: "doc.on.clipboard").font(.system(size: 9))
+                    .frame(width: 20, height: 18)
+                    .background(Color.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             }
             .accessibilityLabel("Paste")
             .accessibilityHint("Inserts the text you last copied.")
 
-            Divider().frame(height: 18)
+            Divider().frame(height: 14)
             toolbarTrailingContent
         }
-        .padding(.horizontal, 6)
-        .frame(height: 30)
+        .padding(.horizontal, 5)
+        .frame(height: 20)
     }
 
     /// The old standalone status line and suggestion strip, sharing one
@@ -910,20 +907,20 @@ struct KeyboardView: View {
         HStack(spacing: 0) {
             if dictation.isRecording && !dictation.partialText.isEmpty {
                 Text("\u{1F3A4} " + dictation.partialText)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else if !status.isEmpty {
                 Text(status)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else if !isNumbers && !suggestions.isEmpty {
                 ForEach(Array(suggestions.enumerated()), id: \.offset) { index, suggestion in
-                    if index > 0 { Divider().frame(height: 16) }
+                    if index > 0 { Divider().frame(height: 12) }
                     Button { applySuggestion(suggestion) } label: {
                         Text(suggestion)
-                            .font(.system(size: 13))
+                            .font(.system(size: 11))
                             .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.12))
                             .lineLimit(1)
                             .frame(maxWidth: .infinity)
@@ -956,7 +953,11 @@ struct KeyboardView: View {
         // Basing the size on any narrower row would let it overflow past
         // the screen edge.
         let widthBased = (keyboardWidth - 13 * 5) / 14.4
-        return min(widthBased, 72)
+        // Raised from 72: on very wide screens (13" iPad landscape) letting
+        // every ordinary key grow a modest amount, not just Tab/Shift,
+        // matches how Apple actually spreads leftover width across several
+        // keys rather than concentrating it into one or two.
+        return min(widthBased, 80)
     }
 
     /// True when the device is in landscape. `keyboardHeight` is this
@@ -1041,28 +1042,25 @@ struct KeyboardView: View {
 
     /// Tab (q-row) and Caps Lock (a-row) both replace exactly one square
     /// key's worth of leftover width, widened further to reach
-    /// `letterRowTargetWidth` when there's real margin to claim. Capped at
-    /// 2.2x a normal key — real Tab/Caps Lock keys on Apple's own hardware
-    /// stay in that range even on the largest iPads; letting this grow
-    /// unbounded to fully zero out the margin (~5x on a 13" iPad) produces
-    /// a comically oversized key instead of a nicer-looking keyboard, so
-    /// past this point the remaining leftover stays as margin instead.
+    /// `letterRowTargetWidth` exactly — no cap. Fills the full available
+    /// width edge to edge on every screen, even if that means these keys
+    /// get quite wide on the largest iPads; matching the true screen edge
+    /// takes priority over keeping this key a particular proportion.
     private var qRowEdgeKeyWidth: CGFloat {
-        min(letterRowTargetWidth - 13 * keySize - 65, keySize * 2.2)
+        letterRowTargetWidth - 13 * keySize - 65
     }
 
     /// Return (a-row, at the far end) absorbs the rest of that row's
     /// leftover width once `qRowEdgeKeyWidth` (Caps Lock) has taken its
     /// share — algebraically invariant of the target width (the two
-    /// exactly cancel out), so this doesn't need its own cap or update.
+    /// exactly cancel out), so this doesn't need updating alongside it.
     private var returnKeyWidth: CGFloat { keySize * 2 + 5 }
 
     /// Each Shift key (z-row, one on each end) takes half of that row's
-    /// leftover width vs. the number row, same widen-with-a-cap treatment
-    /// as `qRowEdgeKeyWidth` (capped at 2.0x here since two keys are
-    /// splitting the leftover rather than one).
+    /// leftover width vs. the number row, same uncapped full-width
+    /// treatment as `qRowEdgeKeyWidth`.
     private var zRowShiftWidth: CGFloat {
-        min((letterRowTargetWidth - 11 * keySize - 60) / 2, keySize * 2.0)
+        (letterRowTargetWidth - 11 * keySize - 60) / 2
     }
 
     private var keyboardSection: some View {
@@ -1601,7 +1599,11 @@ struct KeyboardView: View {
             ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
                 dualCharKey(pair.0, pair.1, width: keySize)
             }
-            deleteKey(width: keySize * 1.4)
+            // Same 13-square-keys-plus-one-edge-key shape as the q-row
+            // below (13*keySize+65 base), so reuses qRowEdgeKeyWidth's
+            // exact formula — keeps this row's total width matching the
+            // letter rows below it instead of stopping short of them.
+            deleteKey(width: qRowEdgeKeyWidth)
         }
     }
 
