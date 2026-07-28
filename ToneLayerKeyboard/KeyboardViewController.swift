@@ -1387,6 +1387,12 @@ struct KeyboardView: View {
             .background(Color.white, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .keycapShadow()
             .keyTapTarget()
+            // Grows the key itself on press, on top of the popup bubble
+            // above it — scaleEffect is purely visual (doesn't change the
+            // frame SwiftUI hit-tests against), so this can't shift where
+            // adjacent keys are tappable.
+            .scaleEffect(pressedKeyTitle == keyID ? 1.18 : 1.0)
+            .animation(.easeOut(duration: 0.08), value: pressedKeyTitle)
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
