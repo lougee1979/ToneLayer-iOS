@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Alden Lougee. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, modification,
+// distribution, or derivative use is prohibited.
+
 //
 //  ToneLayerApp.swift
 //  ToneLayer
@@ -11,7 +15,11 @@ import SwiftUI
 struct ToneLayerApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if hasAcceptedAgreement() {
+                ContentView()
+            } else {
+                AgreementGate()
+            }
         }
     }
 }

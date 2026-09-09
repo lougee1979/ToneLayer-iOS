@@ -7,7 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		97BEFDD83BDFD1E59B0371CA /* ToneLayerCore in Frameworks */ = {isa = PBXBuildFile; productRef = 29E01DA875B059DC35186CAC /* ToneLayerCore */; };
 		BF6B1D0D2FA789DF00AD43B9 /* ToneLayerKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BF6B1D062FA789DF00AD43B9 /* ToneLayerKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D707A160DA457A4AB2C403CA /* ToneLayerCore in Frameworks */ = {isa = PBXBuildFile; productRef = DA32F6E4DB9B8273875BD9B5 /* ToneLayerCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -96,6 +98,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D707A160DA457A4AB2C403CA /* ToneLayerCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -117,6 +120,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				97BEFDD83BDFD1E59B0371CA /* ToneLayerCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -167,6 +171,7 @@
 			);
 			name = ToneLayer;
 			packageProductDependencies = (
+				DA32F6E4DB9B8273875BD9B5 /* ToneLayerCore */,
 			);
 			productName = ToneLayer;
 			productReference = BF6B1CD82FA7896F00AD43B9 /* ToneLayer.app */;
@@ -189,8 +194,6 @@
 				BF6B1CE82FA7897000AD43B9 /* ToneLayerTests */,
 			);
 			name = ToneLayerTests;
-			packageProductDependencies = (
-			);
 			productName = ToneLayerTests;
 			productReference = BF6B1CE52FA7897000AD43B9 /* ToneLayerTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -212,8 +215,6 @@
 				BF6B1CF22FA7897000AD43B9 /* ToneLayerUITests */,
 			);
 			name = ToneLayerUITests;
-			packageProductDependencies = (
-			);
 			productName = ToneLayerUITests;
 			productReference = BF6B1CEF2FA7897000AD43B9 /* ToneLayerUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -235,6 +236,7 @@
 			);
 			name = ToneLayerKeyboard;
 			packageProductDependencies = (
+				29E01DA875B059DC35186CAC /* ToneLayerCore */,
 			);
 			productName = ToneLayerKeyboard;
 			productReference = BF6B1D062FA789DF00AD43B9 /* ToneLayerKeyboard.appex */;
@@ -275,6 +277,9 @@
 			);
 			mainGroup = BF6B1CCF2FA7896F00AD43B9;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				3F3747B087508D32479AB5B6 /* XCLocalSwiftPackageReference "ToneLayerCore" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BF6B1CD92FA7896F00AD43B9 /* Products */;
 			projectDirPath = "";
@@ -404,7 +409,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				DEVELOPMENT_TEAM = J2TYFWP2HM;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -469,7 +474,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				DEVELOPMENT_TEAM = J2TYFWP2HM;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -499,12 +504,16 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = ToneLayer/ToneLayer.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 466RHQ4TLW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = ToneLayer;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "ToneLayer reads your calendar so TonalInsight can help you keep track of your schedule and stay on top of upcoming commitments.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ToneLayer uses your location to estimate travel time to your scheduled events so TonalInsight can give you a heads-up before you need to leave.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ToneLayer uses your microphone for voice dictation and the optional TonalInsight feature, which listens to vocal tone to offer gentle feedback.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ToneLayer uses speech recognition to convert your spoken words into text for voice dictation and the optional TonalInsight feature.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -534,12 +543,16 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = ToneLayer/ToneLayer.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 466RHQ4TLW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = ToneLayer;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "ToneLayer reads your calendar so TonalInsight can help you keep track of your schedule and stay on top of upcoming commitments.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ToneLayer uses your location to estimate travel time to your scheduled events so TonalInsight can give you a heads-up before you need to leave.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ToneLayer uses your microphone for voice dictation and the optional TonalInsight feature, which listens to vocal tone to offer gentle feedback.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ToneLayer uses speech recognition to convert your spoken words into text for voice dictation and the optional TonalInsight feature.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -567,8 +580,8 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = J2TYFWP2HM;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
@@ -589,8 +602,8 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = J2TYFWP2HM;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
@@ -610,8 +623,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = J2TYFWP2HM;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alden.ToneLayerUITests;
@@ -630,8 +643,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 466RHQ4TLW;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = J2TYFWP2HM;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alden.ToneLayerUITests;
@@ -651,9 +664,9 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ToneLayerKeyboard/ToneLayerKeyboard.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 466RHQ4TLW;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ToneLayerKeyboard/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "ToneLayer Keyboard";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -680,9 +693,9 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ToneLayerKeyboard/ToneLayerKeyboard.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 466RHQ4TLW;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ToneLayerKeyboard/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "ToneLayer Keyboard";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -753,6 +766,26 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		3F3747B087508D32479AB5B6 /* XCLocalSwiftPackageReference "ToneLayerCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ToneLayerCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		29E01DA875B059DC35186CAC /* ToneLayerCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3F3747B087508D32479AB5B6 /* XCLocalSwiftPackageReference "ToneLayerCore" */;
+			productName = ToneLayerCore;
+		};
+		DA32F6E4DB9B8273875BD9B5 /* ToneLayerCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3F3747B087508D32479AB5B6 /* XCLocalSwiftPackageReference "ToneLayerCore" */;
+			productName = ToneLayerCore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = BF6B1CD02FA7896F00AD43B9 /* Project object */;
 }

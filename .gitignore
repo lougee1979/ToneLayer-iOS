@@ -7,3 +7,6 @@ build/
 *.dSYM.zip
 *.dSYM
 .swiftpm/
+ToneLayerCore/Sources/ToneLayerCore/Secrets.swift
+ToneLayerCore/Sources/ToneLayerCore/Secrets.swift.bak*
+.build/
