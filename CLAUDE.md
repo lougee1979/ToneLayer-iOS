@@ -81,3 +81,29 @@ Rules for these modes:
   always a clear, deliberate, consented choice.
 - Voice-tone (Hume) is inherently cloud-based, so it belongs only to Full
   mode and must never run in Secure mode.
+
+### NO DIAGNOSTIC LABELS TO THE AI — FROZEN. NEVER SEND A DIAGNOSIS TO A MODEL.
+
+AI disability bias becomes possible the moment a diagnostic term enters the
+text an AI model reads. Models have absorbed the world's stereotypes about
+"ADHD," "autistic," "PTSD," "CPTSD," etc. — the label invokes those priors and
+can pathologize or distort the output. Describing the BEHAVIOR cannot do this;
+the LABEL can. So the label must NEVER reach the model.
+
+ALWAYS:
+- Describe the behavior/pattern, never the diagnosis, in ANYTHING sent to an
+  AI (prompts, system instructions, voice prompts, the server "profile"
+  field, tool inputs). E.g. "reduce working-memory load; surface the buried
+  ask" — never "ADHD: ...". "Lower threat signals; add reassurance" — never
+  "PTSD: ...".
+- Keep diagnostic terms, if used at all, ONLY in the user-facing UI as the
+  user's own optional self-identification. The user selects who they are;
+  that selection maps INTERNALLY to behavior instructions; the diagnostic
+  word is stripped before anything is sent to a model.
+- Before sending anything to an AI, scan it for diagnostic terms (ADHD,
+  AUDHD, Autism/autistic, PTSD, CPTSD, etc.) and remove them, keeping the
+  behavior.
+
+NEVER put a diagnosis in a prompt, a system message, a profile string sent to
+the server, or any other AI-facing text. This is a core anti-bias guarantee of
+the product: "we never tell the AI your diagnosis."
